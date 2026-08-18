@@ -40,9 +40,13 @@ frontend/
     ├── App.vue             # Root layout shell & global toast notification harness
     ├── style.css           # Global CSS variables, reset rules, and base dark theme
     ├── components/
-    │   └── AthleteRoster.vue # Screen 1: Athlete Roster Grid & Discipline Filters
-    └── types/
-        └── athlete.ts      # TypeScript interfaces, enums, and display label constants
+    │   ├── AthleteCard.vue   # Sub-component representing a single athlete card
+    │   ├── AthleteRoster.vue # Screen 1: Roster grid container orchestrator
+    │   └── RosterToolbar.vue # Search and discipline filter pills toolbar
+    ├── types/
+    │   └── athlete.ts      # TypeScript interfaces, enums, and display label constants
+    └── utils/
+        └── formatters.ts   # Shared formatting helpers (getInitials, formatDate)
 ```
 
 ---
