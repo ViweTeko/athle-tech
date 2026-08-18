@@ -4,6 +4,7 @@ import {
   DISCIPLINE_LABELS,
   AGE_CATEGORY_LABELS
 } from '../types/athlete';
+import { getInitials, formatDate } from '../utils/formatters';
 
 const props = defineProps<{
   athlete: Athlete;
@@ -15,25 +16,6 @@ const emit = defineEmits<{
 
 function handleLogWorkload() {
   emit('log-workload', props.athlete);
-}
-
-function getInitials(name: string): string {
-  return name
-    .split(' ')
-    .map((part) => part.charAt(0))
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-}
-
-function formatDate(isoStr: string): string {
-  if (!isoStr) return '';
-  const d = new Date(isoStr);
-  return d.toLocaleDateString('en-ZA', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  });
 }
 </script>
 
