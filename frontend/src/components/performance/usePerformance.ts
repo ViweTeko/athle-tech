@@ -1,64 +1,120 @@
-import { ref } from 'vue'
-import type { RaceResult } from './types'
-
 /**
- * Custom Vue composable hook to manage athletic race results, format durations,
- * calculate benchmarking deltas, and insert new performance records.
- * 
- * @returns Reactively tracked state variables, conversion methods, and list mutations.
+ * frontend/src/components/performance/usePerformance.ts
+ *
+ * Vue 3 composable managing Race Performance tracking state, REST API communications,
+ * and calculations comparing athlete times against ASA (Athletics South Africa) national standards.
  */
+
+import { ref, computed } from 'vue'
+
+export interface RacePerformanceRecord {
+    id?: string
+    athlete: string // Athlete UUID
+    event_name: '100m' | '200m' | '400m' | '800m' | '1500m' | '5000m' | '10km' | '21.1km'
+    date: string
+    recorded_time_seconds: number
+    asa_standard_seconds: number
+    delta_seconds?: number // Computed backend property: recorded - standard
+}
+
+const API_BASE_URL = 'http://127.0.0.1:8000/api'
+
 export function usePerformance() {
-    const results = ref<RaceResult[]>([
-        {
-            id: '1',
-            athleteId: '101',
-            athleteName: 'Sipho Ndlovu',
-            eventName: '800m',
-            date: '2026-08-15',
-            recordedTimeSeconds: 112.4, // 1:52.40
-            asaStandardSeconds: 108.0   // 1:48.00 (Target)
-        },
-        {
-            id: '2',
-            athleteId: '102',
-            athleteName: 'Anathi Mabena',
-            eventName: '1500m',
-            date: '2026-08-18',
-            recordedTimeSeconds: 238.1, // 3:58.10
-            asaStandardSeconds: 232.0   // 3:52.00 (Target)
-        }
-    ])
+    const performances = ref<RacePerformanceRecord[]>([])
+    const loading = ref<boolean>(false)
+    const error = ref<string | null>(null)
 
-    // Convert seconds to MM:SS.ms string display
-    function formatSecondsToTime(totalSeconds: number): string {
-        const mins = Math.floor(totalSeconds / 60)
-        const secs = (totalSeconds % 60).toFixed(2)
-        return mins > 0
-            ? `${mins}:${Number(secs) < 10 ? '0' : ''}${secs}`
-            : `${secs}s`
-    }
+    /**
+     * Fetch all race performance records from the Django REST API.
+     * Can optionally filter by athlete UUID or specific event category.
+     */
+    const fetchPerformances = async (athleteId?: string, eventName?: string) => {
+        loading.value = true
+        error.value = null
+        try {
+            const queryParams = new URLSearchParams()
+            if (athleteId) queryParams.append('athlete', athleteId)
+            if (eventName) queryParams.append('event_name', eventName)
 
-    // Delta calculation: recorded - target (positive = seconds off target)
-    function calculateDelta(recorded: number, target: number): { seconds: string; percentage: number } {
-        const diff = recorded - target
-        const percentage = Math.min(Number(((target / recorded) * 100).toFixed(1)), 100)
-        return {
-            seconds: diff > 0 ? `+${diff.toFixed(2)}s` : `${diff.toFixed(2)}s`,
-            percentage
+            const queryString = queryParams.toString()
+            const url = queryString
+                ? `${API_BASE_URL}/performance/?${queryString}`
+                : `${API_BASE_URL}/performance/`
+
+            const response = await fetch(url)
+            if (!response.ok) {
+                throw new Error(`Failed to fetch race performances: ${response.statusText}`)
+            }
+            performances.value = await response.json()
+        } catch (err: any) {
+            error.value = err.message || 'Error loading performance records'
+        } finally {
+            loading.value = false
         }
     }
 
-    function addResult(newResult: Omit<RaceResult, 'id'>) {
-        results.value.unshift({
-            ...newResult,
-            id: Date.now().toString()
-        })
+    /**
+     * Submit a new race performance record to the Django REST backend.
+     */
+    const addPerformance = async (
+        record: Omit<RacePerformanceRecord, 'id' | 'delta_seconds'>
+    ) => {
+        loading.value = true
+        error.value = null
+        try {
+            const response = await fetch(`${API_BASE_URL}/performance/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(record),
+            })
+
+            if (!response.ok) {
+                const errData = await response.json()
+                throw new Error(JSON.stringify(errData))
+            }
+
+            const newRecord: RacePerformanceRecord = await response.json()
+            performances.value.unshift(newRecord)
+            return newRecord
+        } catch (err: any) {
+            error.value = err.message || 'Error recording race performance'
+            throw err
+        } finally {
+            loading.value = false
+        }
     }
+
+    /**
+     * Calculates the athlete's personal best (PB) time in seconds for a specific event.
+     */
+    const getPersonalBest = (eventName: string): number | null => {
+        const eventRecords = performances.value.filter((p) => p.event_name === eventName)
+        if (eventRecords.length === 0) return null
+        return Math.min(...eventRecords.map((p) => p.recorded_time_seconds))
+    }
+
+    /**
+     * Computes average gap in seconds against ASA qualifying standards across all logged races.
+     * Negative values indicate running faster than the national standard.
+     */
+    const averageAsaDelta = computed(() => {
+        if (performances.value.length === 0) return 0
+        const totalDelta = performances.value.reduce((sum, p) => {
+            const delta = p.delta_seconds ?? (p.recorded_time_seconds - p.asa_standard_seconds)
+            return sum + delta
+        }, 0)
+        return parseFloat((totalDelta / performances.value.length).toFixed(2))
+    })
 
     return {
-        results,
-        formatSecondsToTime,
-        calculateDelta,
-        addResult
+        performances,
+        loading,
+        error,
+        fetchPerformances,
+        addPerformance,
+        getPersonalBest,
+        averageAsaDelta,
     }
 }
