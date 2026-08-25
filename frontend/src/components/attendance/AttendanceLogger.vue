@@ -1,4 +1,10 @@
 <script setup lang="ts">
+/**
+ * @fileoverview AttendanceLogger component.
+ * Main view component for logging daily athlete attendance, training session details,
+ * and monitoring active injury risks via the ACWR index.
+ */
+
 import { useAttendance } from './useAttendance'
 import SessionSetupBar from './SessionSetupBar.vue'
 import AttendanceTableRow from './AttendanceTableRow.vue'

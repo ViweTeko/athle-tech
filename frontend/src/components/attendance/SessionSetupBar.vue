@@ -1,4 +1,10 @@
 <script setup lang="ts">
+/**
+ * @fileoverview SessionSetupBar component.
+ * Provides controls to configure global settings for the training session,
+ * such as date, session type, duration, and save/submit actions.
+ */
+
 import type { SessionType } from './types'
 
 const date = defineModel<string>('date', { required: true })

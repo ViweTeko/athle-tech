@@ -1,4 +1,10 @@
 <script setup lang="ts">
+/**
+ * @fileoverview PerformanceTracker component.
+ * Shell view component for Screen 3, combining the ResultEntryForm and
+ * grid of PerformanceCard instances to track athletes' benchmark achievements.
+ */
+
 import { usePerformance } from './usePerformance'
 import ResultEntryForm from './ResultEntryForm.vue'
 import PerformanceCard from './PerformanceCard.vue'

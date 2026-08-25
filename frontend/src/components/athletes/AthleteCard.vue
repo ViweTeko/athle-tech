@@ -1,10 +1,16 @@
 <script setup lang="ts">
+/**
+ * @fileoverview AthleteCard component.
+ * Renders an athlete's detail summary card including their name, age group,
+ * discipline category, registration date, and actions to log workload.
+ */
+
 import {
   Athlete,
   DISCIPLINE_LABELS,
   AGE_CATEGORY_LABELS
-} from '../types/athlete';
-import { getInitials, formatDate } from '../utils/formatters';
+} from './types';
+import { getInitials, formatDate } from '../../utils/formatters';
 
 const props = defineProps<{
   athlete: Athlete;

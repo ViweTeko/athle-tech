@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import AthleteRoster from '../components/AthleteRoster.vue'
+import AthleteRoster from '../components/athletes/AthleteRoster.vue'
 import AttendanceLogger from '../components/attendance/AttendanceLogger.vue'
 import PerformanceTracker from '../components/performance/PerformanceTracker.vue'
 

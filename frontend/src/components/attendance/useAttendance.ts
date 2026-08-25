@@ -1,6 +1,12 @@
 import { ref, computed } from 'vue'
 import type { AttendanceEntry, SessionType } from './types'
 
+/**
+ * Custom Vue composable hook to manage attendance logs and calculate
+ * Acute-to-Chronic Workload Ratio (ACWR) safety thresholds.
+ * 
+ * @returns Reactively tracked state variables, computed indicators, and control functions.
+ */
 export function useAttendance() {
   const sessionDate = ref(new Date().toISOString().split('T')[0])
   const globalSessionType = ref<SessionType>('TRACK')
@@ -57,7 +63,7 @@ export function useAttendance() {
 
   // Batch updates
   function applyGlobalSettings() {
-    attendanceList.value.forEach((entry) => {
+    attendanceList.value.forEach((entry: AttendanceEntry) => {
       entry.sessionType = globalSessionType.value
       if (entry.status === 'PRESENT') {
         entry.durationMinutes = globalDuration.value
@@ -68,12 +74,12 @@ export function useAttendance() {
   // Reactive Indicators
   const highRiskCount = computed(() => {
     return attendanceList.value.filter(
-      (entry) => calculateACWR(entry.acute7DaySum, entry.chronic28DayAvg) > 1.5
+      (entry: AttendanceEntry) => calculateACWR(entry.acute7DaySum, entry.chronic28DayAvg) > 1.5
     ).length
   })
 
   const totalPresent = computed(() => {
-    return attendanceList.value.filter((entry) => entry.status === 'PRESENT').length
+    return attendanceList.value.filter((entry: AttendanceEntry) => entry.status === 'PRESENT').length
   })
 
   return {

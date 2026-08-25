@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+/**
+ * @fileoverview AthleteRoster component.
+ * Serves as the primary viewport/shell for the Athlete Roster Engine (Screen 1).
+ * Composes search toolbar, quick metrics cards, and the grid display of athlete cards.
+ */
+
+import { toRef } from 'vue';
 import {
   Athlete,
   DisciplineFilter
-} from '../types/athlete';
+} from './types';
 import RosterToolbar from './RosterToolbar.vue';
 import AthleteCard from './AthleteCard.vue';
+import { useAthletes } from './useAthletes';
 
 const props = withDefaults(
   defineProps<{
@@ -26,78 +33,12 @@ const emit = defineEmits<{
   (e: 'filter-change', filter: DisciplineFilter): void;
 }>();
 
-// Default Mock Data if no props provided
-const mockAthletes: Athlete[] = [
-  {
-    athlete_id: '101e4567-e89b-12d3-a456-426614174001',
-    full_name: 'Sipho Ndlovu',
-    age_category: 'U20',
-    primary_discipline: 'TRACK_FIELD',
-    created_at: '2026-01-15T08:30:00Z'
-  },
-  {
-    athlete_id: '202e4567-e89b-12d3-a456-426614174002',
-    full_name: 'Anika van Zyl',
-    age_category: 'SENIOR',
-    primary_discipline: 'CROSS_COUNTRY',
-    created_at: '2026-02-01T10:15:00Z'
-  },
-  {
-    athlete_id: '303e4567-e89b-12d3-a456-426614174003',
-    full_name: 'Lethabo Mokoena',
-    age_category: 'U18',
-    primary_discipline: 'TRACK_FIELD',
-    created_at: '2026-02-10T14:20:00Z'
-  },
-  {
-    athlete_id: '404e4567-e89b-12d3-a456-426614174004',
-    full_name: 'Pieter Botha',
-    age_category: 'SENIOR',
-    primary_discipline: 'ROAD',
-    created_at: '2026-03-05T09:00:00Z'
-  },
-  {
-    athlete_id: '505e4567-e89b-12d3-a456-426614174005',
-    full_name: 'Zola Khumalo',
-    age_category: 'U16',
-    primary_discipline: 'CROSS_COUNTRY',
-    created_at: '2026-03-12T11:45:00Z'
-  },
-  {
-    athlete_id: '606e4567-e89b-12d3-a456-426614174006',
-    full_name: 'Jessica Daniels',
-    age_category: 'U20',
-    primary_discipline: 'ROAD',
-    created_at: '2026-04-02T16:10:00Z'
-  }
-];
-
-const selectedFilter = ref<DisciplineFilter>('ALL');
-const searchQuery = ref('');
-
-const rosterList = computed<Athlete[]>(() => props.athletes ?? mockAthletes);
-
-const stats = computed(() => {
-  const list = rosterList.value;
-  return {
-    total: list.length,
-    track: list.filter((a) => a.primary_discipline === 'TRACK_FIELD').length,
-    xc: list.filter((a) => a.primary_discipline === 'CROSS_COUNTRY').length,
-    road: list.filter((a) => a.primary_discipline === 'ROAD').length
-  };
-});
-
-const filteredAthletes = computed(() => {
-  return rosterList.value.filter((athlete) => {
-    const matchesFilter =
-      selectedFilter.value === 'ALL' ||
-      athlete.primary_discipline === selectedFilter.value;
-    const matchesSearch = athlete.full_name
-      .toLowerCase()
-      .includes(searchQuery.value.trim().toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
-});
+const {
+  selectedFilter,
+  searchQuery,
+  filteredAthletes,
+  stats
+} = useAthletes(toRef(props, 'athletes'));
 
 function setFilter(filter: DisciplineFilter) {
   selectedFilter.value = filter;
@@ -254,6 +195,7 @@ function handleLogWorkload(athlete: Athlete) {
   letter-spacing: -0.02em;
   background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin: 0 0 0.5rem 0;
 }

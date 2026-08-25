@@ -1,4 +1,10 @@
 <script setup lang="ts">
+/**
+ * @fileoverview ResultEntryForm component.
+ * Renders a form input grid allowing users to submit an athlete's race results,
+ * specifying the name, event type, date, achieved time, and target ASA benchmark.
+ */
+
 import { ref } from 'vue'
 import type { EventCategory, RaceResult } from './types'
 

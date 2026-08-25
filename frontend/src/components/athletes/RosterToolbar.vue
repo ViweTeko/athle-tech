@@ -1,6 +1,12 @@
 <script setup lang="ts">
+/**
+ * @fileoverview RosterToolbar component.
+ * Provides controls for filtering athletes by primary discipline category
+ * and searching roster entries by full name.
+ */
+
 import { computed } from 'vue';
-import { DisciplineFilter } from '../types/athlete';
+import { DisciplineFilter } from './types';
 
 const props = defineProps<{
   searchQuery: string;

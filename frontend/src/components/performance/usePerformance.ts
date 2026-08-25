@@ -1,6 +1,12 @@
 import { ref } from 'vue'
 import type { RaceResult } from './types'
 
+/**
+ * Custom Vue composable hook to manage athletic race results, format durations,
+ * calculate benchmarking deltas, and insert new performance records.
+ * 
+ * @returns Reactively tracked state variables, conversion methods, and list mutations.
+ */
 export function usePerformance() {
     const results = ref<RaceResult[]>([
         {

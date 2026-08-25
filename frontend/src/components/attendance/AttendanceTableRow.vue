@@ -1,4 +1,10 @@
 <script setup lang="ts">
+/**
+ * @fileoverview AttendanceTableRow component.
+ * Renders a table row representing a single athlete's attendance, session duration,
+ * rate of perceived exertion (RPE), and current ACWR ratio.
+ */
+
 import type { AttendanceEntry } from './types'
 
 const props = defineProps<{

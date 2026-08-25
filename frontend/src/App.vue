@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import AthleteRoster from './components/AthleteRoster.vue';
-import { Athlete } from './types/athlete';
+import AthleteRoster from './components/athletes/AthleteRoster.vue';
+import { Athlete } from './components/athletes/types';
 
 const notification = ref<string | null>(null);
 

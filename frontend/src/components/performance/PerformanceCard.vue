@@ -1,4 +1,10 @@
 <script setup lang="ts">
+/**
+ * @fileoverview PerformanceCard component.
+ * Displays a single race performance result, tracking proximity to national standards,
+ * the time difference (delta), and visualizing completion on a custom progress bar.
+ */
+
 import type { RaceResult } from './types'
 
 const props = defineProps<{
