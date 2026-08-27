@@ -23,6 +23,9 @@ class Athlete(models.Model):
         SPRINTS = 'SPRINTS', 'Sprints (100m-400m)'
         MIDDLE_DISTANCE = 'MIDDLE', 'Middle Distance (800m-1500m)'
         LONG_DISTANCE = 'LONG', 'Long Distance (5000m-Marathon)'
+        HURDLES = 'HURDLES', 'Hurdles'
+        JUMPS = 'JUMPS', 'Jumps'
+        THROWS = 'THROWS', 'Throws'
 
     class Status(models.TextChoices):
         ACTIVE = 'ACTIVE', 'Active'

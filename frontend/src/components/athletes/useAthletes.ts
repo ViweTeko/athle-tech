@@ -15,6 +15,20 @@ export type StatusFilter = 'ALL' | RosterStatus;
 /** Filter value representing a subset of athletes by primary event. */
 export type EventFilter = 'ALL' | PrimaryEvent;
 
+/** Roster statistical metrics breakdown */
+export interface AthleteStats {
+  total: number;
+  sprints: number;
+  middle: number;
+  long: number;
+  hurdles: number;
+  jumps: number;
+  throws: number;
+  active: number;
+  injured: number;
+  resting: number;
+}
+
 /**
  * Custom Vue composable hook to manage athlete roster filtering, search queries,
  * and computed statistics/metrics over a reactive list of Athlete records.
@@ -26,19 +40,24 @@ export type EventFilter = 'ALL' | PrimaryEvent;
  */
 export function useAthletes(athletesRef?: Ref<Athlete[] | undefined>) {
   const selectedStatus = ref<StatusFilter>('ALL');
+  const selectedEvent = ref<EventFilter>('ALL');
   const searchQuery = ref('');
 
   const rosterList = computed<Athlete[]>(() => athletesRef?.value ?? []);
 
-  const stats = computed(() => {
+  const stats = computed<AthleteStats>(() => {
     const list = rosterList.value;
     return {
       total: list.length,
       sprints: list.filter((a) => a.primary_event === 'SPRINTS').length,
       middle: list.filter((a) => a.primary_event === 'MIDDLE').length,
       long: list.filter((a) => a.primary_event === 'LONG').length,
+      hurdles: list.filter((a) => a.primary_event === 'HURDLES').length,
+      jumps: list.filter((a) => a.primary_event === 'JUMPS').length,
+      throws: list.filter((a) => a.primary_event === 'THROWS').length,
       active: list.filter((a) => a.status === 'ACTIVE').length,
       injured: list.filter((a) => a.status === 'INJURED').length,
+      resting: list.filter((a) => a.status === 'RESTING').length,
     };
   });
 
@@ -46,14 +65,18 @@ export function useAthletes(athletesRef?: Ref<Athlete[] | undefined>) {
     return rosterList.value.filter((athlete) => {
       const matchesStatus =
         selectedStatus.value === 'ALL' || athlete.status === selectedStatus.value;
+      const matchesEvent =
+        selectedEvent.value === 'ALL' || athlete.primary_event === selectedEvent.value;
       const fullName = `${athlete.first_name} ${athlete.last_name}`.toLowerCase();
       const matchesSearch = fullName.includes(searchQuery.value.trim().toLowerCase());
-      return matchesStatus && matchesSearch;
+
+      return matchesStatus && matchesEvent && matchesSearch;
     });
   });
 
   return {
     selectedStatus,
+    selectedEvent,
     searchQuery,
     filteredAthletes,
     stats,

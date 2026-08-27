@@ -6,7 +6,7 @@
 -->
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { Athlete } from './types';
+import { Athlete, PrimaryEvent, RosterStatus } from './types';
 
 const emit = defineEmits<{
   (e: 'log-workload', athlete: Athlete): void;
@@ -27,9 +27,9 @@ const newAthlete = ref({
   first_name: '',
   last_name: '',
   date_of_birth: '',
-  gender: 'MALE',
-  primary_event: 'SPRINT',
-  status: 'ACTIVE',
+  gender: 'M',
+  primary_event: 'SPRINT' as PrimaryEvent,
+  status: 'ACTIVE' as RosterStatus,
 });
 
 /**
@@ -83,7 +83,7 @@ const handleAddAthlete = async () => {
       last_name: '',
       date_of_birth: '',
       gender: 'M',
-      primary_event: 'SPRINT',
+      primary_event: 'SPRINTS',
       status: 'ACTIVE',
     };
     isAddModalOpen.value = false;

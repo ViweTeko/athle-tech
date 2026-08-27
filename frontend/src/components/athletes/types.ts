@@ -11,7 +11,13 @@ export type GenderCategory = 'M' | 'F';
 /**
  * Primary discipline/event matching backend choices.
  */
-export type PrimaryEvent = 'SPRINTS' | 'MIDDLE' | 'LONG';
+export type PrimaryEvent =
+  | 'SPRINTS'
+  | 'MIDDLE'
+  | 'LONG'
+  | 'HURDLES'
+  | 'JUMPS'
+  | 'THROWS';
 
 /**
  * Athlete status matching backend choices.
@@ -49,6 +55,9 @@ export const PRIMARY_EVENT_LABELS: Record<PrimaryEvent, string> = {
   SPRINTS: 'Sprints (100m-400m)',
   MIDDLE: 'Middle Distance (800m-1500m)',
   LONG: 'Long Distance (5000m-Marathon)',
+  HURDLES: 'Hurdles',
+  JUMPS: 'Jumps',
+  THROWS: 'Throws',
 };
 
 /**
