@@ -3,3 +3,8 @@ repomix-output.xml
 repomix-output.md
 repomix-output.txt
 .repomix/
+.venv/
+*.pyc
+__pycache__/
+db.sqlite3
+.env
