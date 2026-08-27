@@ -1,64 +1,81 @@
-<!--
-  frontend/src/components/performance/PerformanceCard.vue
-
-  Displays a single race performance result, comparing the recorded time against
-  the ASA national qualifying standard and visualizing proximity on a progress bar.
--->
+<!-- frontend/src/performance/PerformanceCard.vue -->
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { RacePerformanceRecord } from './usePerformance'
+import { computed } from 'vue';
+import type { RacePerformanceRecord } from './types';
+import { isFieldEvent, formatPerformanceValue, ASA_SENIOR_STANDARDS_MALE } from './usePerformance';
 
 const props = defineProps<{
-  result: RacePerformanceRecord
-  formatSecondsToTime: (secs: number) => string
-  calculateDelta: (rec: number, target: number) => { seconds: string; percentage: number }
-}>()
+  record: RacePerformanceRecord;
+}>();
 
-const delta = computed(() =>
-  props.calculateDelta(props.result.recorded_time_seconds, props.result.asa_standard_seconds)
-)
+const isField = computed(() => isFieldEvent(props.record.event));
+const asaBenchmark = computed(() => ASA_SENIOR_STANDARDS_MALE[props.record.event]);
+
+const asaDelta = computed(() => {
+  if (asaBenchmark.value === undefined) return null;
+  const delta = props.record.result_value - asaBenchmark.value;
+  return Number(delta.toFixed(2));
+});
+
+const qualifiesAsa = computed(() => {
+  if (asaBenchmark.value === undefined) return false;
+  return isField.value
+    ? props.record.result_value >= asaBenchmark.value
+    : props.record.result_value <= asaBenchmark.value;
+});
 </script>
 
 <template>
-  <div class="bg-white border rounded-xl p-5 shadow-sm space-y-3 hover:shadow-md transition">
-    <div class="flex justify-between items-start">
-      <div>
-        <h4 class="font-bold text-gray-900 text-base">{{ result.athlete }}</h4>
-        <span class="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-          {{ result.event_name }} • {{ result.date }}
+  <div class="bg-slate-800/80 border border-slate-700/80 rounded-xl p-5 hover:border-slate-600 transition-all shadow-md flex flex-col justify-between">
+    <div>
+      <!-- Header / Badges -->
+      <div class="flex items-center justify-between gap-2 mb-3">
+        <span class="px-2.5 py-1 rounded-md text-xs font-bold tracking-wider uppercase bg-slate-900 text-indigo-300 border border-slate-700">
+          {{ record.event.replace('_', ' ') }}
         </span>
+
+        <div class="flex items-center gap-1.5">
+          <span
+            v-if="record.is_personal_best"
+            class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-950/80 text-amber-300 border border-amber-800"
+          >
+            ★ PB
+          </span>
+          <span
+            v-if="qualifiesAsa"
+            class="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-950/80 text-emerald-300 border border-emerald-800"
+          >
+            ASA Q
+          </span>
+        </div>
       </div>
 
-      <div class="text-right">
-        <span class="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded">
-          Gap: {{ delta.seconds }}
-        </span>
+      <!-- Mark & Delta Readout -->
+      <div class="my-3">
+        <div class="text-3xl font-extrabold text-white tracking-tight font-mono">
+          {{ formatPerformanceValue(record.result_value, record.event) }}
+        </div>
+        
+        <!-- ASA Delta Pill -->
+        <div v-if="asaBenchmark !== undefined" class="text-xs mt-2 flex items-center gap-1.5 text-slate-400">
+          <span>ASA Benchmark: {{ formatPerformanceValue(asaBenchmark, record.event) }}</span>
+          <span
+            :class="qualifiesAsa ? 'text-emerald-400 font-bold' : 'text-rose-400 font-medium'"
+          >
+            ({{ (asaDelta ?? 0) > 0 ? `+${asaDelta}` : `${asaDelta}` }}{{ isField ? 'm' : 's' }})
+          </span>
+        </div>
       </div>
     </div>
 
-    <!-- Times Grid -->
-    <div class="grid grid-cols-2 gap-2 text-xs pt-2">
-      <div>
-        <p class="text-gray-400 font-medium">Recorded Time</p>
-        <p class="text-base font-bold text-gray-900">{{ formatSecondsToTime(result.recorded_time_seconds) }}</p>
+    <!-- Footer Metadata -->
+    <div class="pt-3 mt-3 border-t border-slate-700/60 text-xs text-slate-400 flex justify-between items-center">
+      <div class="truncate mr-2">
+        <span class="font-medium text-slate-300 block">{{ record.competition_name }}</span>
+        <span>{{ record.competition_date }}</span>
       </div>
-      <div>
-        <p class="text-gray-400 font-medium">ASA National Benchmark</p>
-        <p class="text-base font-bold text-gray-600">{{ formatSecondsToTime(result.asa_standard_seconds) }}</p>
-      </div>
-    </div>
-
-    <!-- Progress Bar towards ASA Standard -->
-    <div class="space-y-1 pt-1">
-      <div class="flex justify-between text-xs font-semibold">
-        <span class="text-gray-500">Benchmark Proximity</span>
-        <span class="text-blue-600">{{ delta.percentage }}%</span>
-      </div>
-      <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-        <div
-          class="bg-blue-600 h-full rounded-full transition-all duration-500"
-          :style="{ width: `${delta.percentage}%` }"
-        ></div>
+      <div v-if="record.wind_reading !== undefined && record.wind_reading !== null" class="font-mono text-slate-500">
+        {{ (record.wind_reading > 0 ? `+${record.wind_reading}` : record.wind_reading) }} m/s
       </div>
     </div>
   </div>
