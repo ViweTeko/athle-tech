@@ -1,71 +1,85 @@
-# Athle-Tech One-Page Architecture Blueprint
+### 2. Root `blueprint.md` (`/blueprint.md`)
 
-## 1. System Guardrails & Control Strategy
-* **Development Environment:** Google Antigravity (Agentic IDE / Review Mode enabled)
-* **Execution Constraint:** 30–45 minute sessions (Mon / Wed / Fri, 05:15–06:00 AM)
-* **Learning & Safety Rule:** No auto-commit. All AI changes must generate a diff artifact for explicit human approval.
+```markdown
+# Athle-Tech Technical Blueprint & Domain Specifications
 
----
-
-## 2. Database Schema (PostgreSQL)
-
-### `athletes_athlete`
-* `athlete_id` (UUID, Primary Key)
-* `full_name` (VARCHAR)
-* `age_category` (VARCHAR: 'U16', 'U18', 'U20', 'SENIOR')
-* `primary_discipline` (VARCHAR: 'TRACK_FIELD', 'CROSS_COUNTRY', 'ROAD')
-* `created_at` (TIMESTAMP)
-
-### `athletes_attendancelog`
-* `id` (BIGINT, Primary Key)
-* `athlete_id` (FK -> `athletes_athlete.athlete_id`)
-* `date` (DATE)
-* `session_type` (VARCHAR: 'TRACK', 'TEMPO', 'GYM', 'LONG_RUN')
-* `rpe` (INTEGER: 1 to 10 rating of perceived exertion)
-* `status` (VARCHAR: 'PRESENT', 'ABSENT', 'INJURED')
-
-### `athletes_raceresult`
-* `id` (BIGINT, Primary Key)
-* `athlete_id` (FK -> `athletes_athlete.athlete_id`)
-* `date` (DATE)
-* `event_name` (VARCHAR: e.g., '100m', '1500m', '10K Road')
-* `recorded_time_seconds` (DECIMAL: exact time in seconds)
-* `national_standard_seconds` (DECIMAL: target ASA benchmark time)
+## 1. Architectural Guardrails
+* **Pattern:** Domain-Driven, Feature-Based Modular Architecture.
+* **Backend:** REST API over Django ORM with decoupled viewsets and analytical aggregation endpoints.
+* **Frontend:** Feature-grouped components, composables, and type definitions with zero technical debt or orphan dependencies.
+* **Data Integrity:** UUID primary keys, strict foreign key constraints, `MinValueValidator`/`MaxValueValidator` ranges, and unique daily attendance indexes.
 
 ---
 
-## 3. Backend Core (Django REST Framework)
+## 2. Relational Database Schema (PostgreSQL)
 
-### Core Modules
-* **`athletes/models.py`**: Clean, unpolluted Django ORM models mapping directly to the PostgreSQL schema.
-* **`athletes/services.py`**:
-  * `calculate_acwr(athlete_id)`: Computes Acute (7-day RPE sum) vs. Chronic (28-day weekly average RPE) load ratios to flag injury risk.
-  * `get_performance_summary(athlete_id)`: Calculates target delta (`recorded_time - national_standard`) and percentage gaps.
-* **`athletes/serializers.py`**: Exposes JSON representation for API consumption without raw DB leaks.
-* **`athletes/views.py`**: DRF `ModelViewSet` routing endpoints (`/api/athletes/`, `/api/athletes/{id}/workload/`).
+### `core_athlete`
+| Field | Type | Modifiers / Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | UUID | Primary Key, `default=uuid4` | Unique athlete identifier |
+| `first_name` | VARCHAR(100) | Not Null | Athlete first name |
+| `last_name` | VARCHAR(100) | Not Null | Athlete surname |
+| `date_of_birth` | DATE | Not Null | Date of birth (YYYY-MM-DD) |
+| `gender` | VARCHAR(1) | Choices: `M`, `F` | Gender category |
+| `primary_event` | VARCHAR(10) | Choices: `SPRINTS`, `MIDDLE`, `LONG`, `HURDLES`, `JUMPS`, `THROWS` | Primary focus discipline |
+| `status` | VARCHAR(10) | Choices: `ACTIVE`, `INJURED`, `RESTING`, `INACTIVE` | Active roster status |
+| `created_at` | TIMESTAMP | Auto Now Add | Record registration timestamp |
+| `updated_at` | TIMESTAMP | Auto Now | Last update timestamp |
+
+### `core_attendancelog`
+| Field | Type | Modifiers / Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | UUID | Primary Key, `default=uuid4` | Log record identifier |
+| `athlete` | FK (`core_athlete`) | `on_delete=CASCADE`, `related_name='attendance_logs'` | Parent athlete reference |
+| `date` | DATE | Not Null | Date of session |
+| `status` | VARCHAR(10) | Choices: `PRESENT`, `ABSENT`, `EXCUSED` | Session presence |
+| `session_type` | VARCHAR(10) | Choices: `TRACK`, `LONG_RUN`, `TEMPO`, `STRENGTH`, `RECOVERY` | Modality |
+| `duration_minutes` | INTEGER | Positive, Default: 60 | Total session time |
+| `rpe` | INTEGER | `validators=[1..10]` | Borg CR10 Exertion Scale |
+| *Constraint* | Composite Unique | `unique_together = ('athlete', 'date')` | One session log per athlete/day |
+| *Property* | `session_workload` | Computed: `duration_minutes * rpe` | Workload in Arbitrary Units (AU) |
+
+### `core_raceperformance`
+| Field | Type | Modifiers / Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | UUID | Primary Key, `default=uuid4` | Performance record identifier |
+| `athlete` | FK (`core_athlete`) | `on_delete=CASCADE`, `related_name='race_performances'` | Parent athlete reference |
+| `event_name` | VARCHAR(10) | Choices: `100m`, `200m`, `400m`, `800m`, `1500m`, `5000m`, `10km`, `21.1km` | Track/Road event |
+| `date` | DATE | Not Null | Competition date |
+| `recorded_time_seconds` | DECIMAL(8,2) | Not Null | Recorded finish time |
+| `asa_standard_seconds` | DECIMAL(8,2) | Not Null | Target qualification benchmark |
+| *Property* | `delta_seconds` | Computed: `recorded_time - asa_standard` | Time gap to standard |
 
 ---
 
-## 4. Frontend Application (Vue.js + TypeScript)
+## 3. Sports Science Mathematical Formulations
 
-### Screen 1: Athlete Roster (`/athletes`)
-* Displays athlete cards filtered by discipline (Track, XC, Road).
-* Quick action button: "Log Today's Workload".
+### 3.1 Session Rating of Perceived Exertion (sRPE)
+$$\text{Session Workload (AU)} = \text{Duration (minutes)} \times \text{RPE (1--10)}$$
 
-### Screen 2: Attendance & Load Logger (`/attendance`)
-* Fast grid UI for coaches to input RPE (1-10) and attendance status per athlete in under 60 seconds post-session.
-* Displays instant visual alert badge if ACWR exceeds 1.5 (High Injury Risk).
+### 3.2 Acute:Chronic Workload Ratio (Gabbett Model)
+For a continuous 28-day timeline referencing target date $t$:
 
-### Screen 3: Performance & Delta Tracker (`/performance`)
-* Input race event times.
-* Displays time delta against national standards with visual progress bars toward qualifying targets.
+$$\text{Acute Workload (7d)} = \frac{\sum_{i=0}^{6} \text{Workload}(t - i)}{7}$$
+
+$$\text{Chronic Workload (28d)} = \frac{\sum_{i=0}^{27} \text{Workload}(t - i)}{28}$$
+
+$$\text{ACWR} = \frac{\text{Acute Workload}}{\text{Chronic Workload}} \quad (\text{if Chronic} > 0)$$
+
+### 3.3 Gabbett Risk Classifications
+* **Under-trained ($\text{ACWR} < 0.8$):** Low fitness stimulus; increased relative injury risk when returning to competition loads.
+* **Sweet Spot ($0.8 \le \text{ACWR} \le 1.3$):** Optimal training zone; high fitness accumulation with lowest relative injury risk.
+* **Elevated Risk ($1.3 < \text{ACWR} \le 1.5$):** Training load spike alert; requires recovery monitoring.
+* **High Danger ($\text{ACWR} > 1.5$):** Severe spike zone; exponential increase in soft-tissue injury risk; immediate taper required.
 
 ---
 
-## 5. 45-Minute Micro-Task Schedule
+## 4. REST API Endpoint Specification
 
-| Day | Focus | 45-Min Action Target |
-| :--- | :--- | :--- |
-| **Mon** | **Spec & Blueprint** | Review paper sketch; prompt Antigravity to generate single-component diff. |
-| **Wed** | **Code & Review** | Review diff artifact line-by-line; run migration or test component. |
-| **Fri** | **Verify & Commit** | Run local server; verify functionality manually; commit to Git. |
+| Method | Endpoint | Description | Query Parameters |
+| :--- | :--- | :--- | :--- |
+| `GET` / `POST` | `/api/athletes/` | Roster list & creation | `?status=ACTIVE`, `?primary_event=SPRINTS`, `?search=` |
+| `GET` / `PUT` | `/api/athletes/{id}/` | Athlete detail & updates | — |
+| `GET` / `POST` | `/api/attendance/` | Daily attendance / sRPE logs | `?athlete={id}`, `?date=YYYY-MM-DD` |
+| `GET` / `POST` | `/api/performances/` | Race marks & ASA comparisons | `?athlete={id}`, `?event_name=800m` |
+| `GET` | `/api/analytics/workload/{id}/` | 28-day ACWR & daily trend series | `?date=YYYY-MM-DD` (optional, defaults to today) |

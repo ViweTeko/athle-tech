@@ -1,96 +1,54 @@
-# Athle-Tech Frontend Application
+# Athle-Tech Frontend Client
 
-Welcome to the **Athle-Tech** frontend application codebase. This web application provides a high-performance, real-time dashboard for athletic coaches to monitor roster statistics, log athlete workload/RPE scores, and track performance deltas against national ASA qualifying benchmarks.
-
----
-
-## 1. Project Overview & Purpose
-
-**Athle-Tech** bridges sports science metrics with intuitive coaching workflows. The frontend is engineered as a single-page application (SPA) designed to:
-- **Streamline Daily Logging:** Allow coaches to input post-session workload and attendance in under 60 seconds.
-- **Provide Visual Roster Intelligence:** Filter athletes by age categories (`U16`, `U18`, `U20`, `Senior`) and disciplines (`Track & Field`, `Cross Country`, `Road`).
-- **Surface Injury Alerts:** Visualize Acute-to-Chronic Workload Ratio (ACWR) warnings when workload spikes exceed safe thresholds.
+The frontend client for Athle-Tech, built as a single-page application using **Vue 3 (Composition API)**, **TypeScript**, and **Vite**.
 
 ---
 
-## 2. Technology Stack & Design System
+## 📂 Frontend Architecture
 
-- **Framework:** [Vue 3](https://vuejs.org/) using the Composition API (`<script setup lang="ts">`).
-- **Language:** [TypeScript](https://www.typescriptlang.org/) for strict type safety and auto-completion.
-- **Build Tool:** [Vite](https://vitejs.dev/) for lightning-fast module replacement (HMR) and production builds.
-- **Styling:** Custom Vanilla CSS featuring modern design elements:
-  - Sleek dark theme palette (`#0b0f19` canvas, `#0f172a` surfaces)
-  - Glassmorphic backdrop blurring (`backdrop-filter: blur(...)`)
-  - Dynamic micro-animations and glowing discipline badges
-  - Fully responsive grid layouts across mobile, tablet, and desktop viewports
-
----
-
-## 3. Directory Structure
+The codebase utilizes a domain-driven, feature-based folder layout:
 
 ```text
-frontend/
-├── index.html              # Main HTML document entry point
-├── package.json            # Dependencies, scripts, and package metadata
-├── tsconfig.json           # Strict TypeScript compiler configuration
-├── vite.config.ts          # Vite build tool and dev server configuration
-├── README.md               # Frontend documentation (this file)
-└── src/
-    ├── main.ts             # Application bootstrapper & Vue app instantiation
-    ├── App.vue             # Root layout shell & global toast notification harness
-    ├── style.css           # Global CSS variables, reset rules, and base dark theme
-    ├── components/
-    │   ├── AthleteCard.vue   # Sub-component representing a single athlete card
-    │   ├── AthleteRoster.vue # Screen 1: Roster grid container orchestrator
-    │   └── RosterToolbar.vue # Search and discipline filter pills toolbar
-    ├── types/
-    │   └── athlete.ts      # TypeScript interfaces, enums, and display label constants
-    └── utils/
-        └── formatters.ts   # Shared formatting helpers (getInitials, formatDate)
-```
+frontend/src/
+├── analytics/                      # Workload Analytics & ACWR Domain
+│   ├── useAnalytics.ts             # API client for backend 28-day ACWR calculations
+│   └── WorkloadDashboard.vue       # SVG ACWR gauge, trend bars, and risk alerts
+├── components/
+│   ├── athletes/                   # Athlete Management Domain
+│   │   ├── types.ts                # Athlete interfaces & discipline enum types
+│   │   ├── useAthletes.ts          # Client-side filtering & headcount composable
+│   │   ├── AthleteCard.vue         # Individual athlete presentation card
+│   │   ├── AthleteRoster.vue       # Screen 1 container with Add Modal & Grid
+│   │   └── RosterToolbar.vue       # Search & multi-discipline filter pills
+│   ├── attendance/                 # Attendance & Workload Logging Domain
+│   │   ├── types.ts                # Session & attendance interfaces
+│   │   ├── useAttendance.ts        # Attendance composable hook
+│   │   ├── AttendanceLogger.vue    # Screen 2: sRPE range slider & logger
+│   │   ├── AttendanceTableRow.vue  # Table row component
+│   │   └── SessionSetupBar.vue     # Global session configuration header
+│   └── performance/                # Competition Performance Domain
+│       ├── types.ts                # Race performance & ASA standard types
+│       ├── usePerformance.ts       # PB evaluation and ASA delta composable
+│       ├── PerformanceCard.vue     # Result card with PB / ASA qualifying badges
+│       ├── PerformanceTracker.vue  # Screen 3 container
+│       └── ResultEntryForm.vue     # Result entry form supporting track & field
+├── router/
+│   └── index.ts                    # Vue Router 4 route map
+├── utils/
+│   └── formatters.ts               # Name initials and date formatters
+├── App.vue                         # Main layout shell with sticky navbar & toast harness
+├── main.ts                         # Application bootstrapper
+└── style.css                       # Modern dark-theme design system
+🧭 Navigation Routes/ $\rightarrow$ WorkloadDashboard.vue (ACWR Gauges & 28-day load history)/athletes $\rightarrow$ AthleteRoster.vue (Roster management & registration)/attendance $\rightarrow$ AttendanceLogger.vue (Daily sRPE session logging)/performance $\rightarrow$ PerformanceTracker.vue (Multi-event PB & ASA standards tracker)🛠️ Development SetupBashcd frontend
 
----
-
-## 4. Backend Connections & System Integration
-
-### What It Connects To
-The frontend connects directly to the **Django REST Framework (DRF)** backend API endpoints:
-- **`GET /api/athletes/`**: Fetches the list of registered athletes and discipline metadata.
-- **`GET /api/athletes/?discipline=TRACK_FIELD`**: Queries filtered athlete subsets.
-- **`POST /api/attendance/`**: Submits session attendance logs and RPE ratings.
-- **`GET /api/athletes/{id}/workload/`**: Fetches computed ACWR ratios and load trend data.
-
-### Why This Decoupled Architecture?
-1. **Speed & UX Responsiveness:** Client-side rendering enables instant text searching, live pill filtering, and zero-latency UI state transitions without page reloads.
-2. **Separation of Concerns:** The Vue frontend handles view presentation, user interactions, and visual accessibility, while Django manages database persistence (PostgreSQL), authentication, and computational algorithms (e.g., 7-day vs. 28-day ACWR load ratios).
-3. **Graceful Fallbacks:** Components like `AthleteRoster.vue` include fallback mock datasets allowing frontend development and UI testing to continue independently even when backend services are offline.
-
----
-
-## 5. Development Setup & Available Scripts
-
-### Prerequisites
-- Node.js (v18.0.0 or higher recommended)
-- npm or pnpm
-
-### Commands
-
-```bash
-# Navigate to the frontend directory
-cd frontend
-
-# Install project dependencies
+# Install dependencies
 npm install
 
-# Start the Vite development server (http://localhost:3000)
+# Start Vite dev server (Port 3000)
 npm run dev
 
-# Perform static type checking with vue-tsc
+# Run TypeScript validation
 npm run type-check
 
 # Build for production
 npm run build
-
-# Preview production build locally
-npm run preview
-```
