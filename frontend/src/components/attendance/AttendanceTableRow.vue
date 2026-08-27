@@ -1,23 +1,27 @@
-<script setup lang="ts">
-/**
- * @fileoverview AttendanceTableRow component.
- * Renders a table row representing a single athlete's attendance, session duration,
- * rate of perceived exertion (RPE), and current ACWR ratio.
- */
+<!--
+  frontend/src/components/attendance/AttendanceTableRow.vue
 
-import type { AttendanceEntry } from './types'
+  Renders a table row for a single athlete's attendance log entry,
+  allowing the user to edit status, duration, and RPE per session.
+  Displays the ACWR badge computed from acute and chronic workload values.
+-->
+<script setup lang="ts">
+import type { AttendanceRecord } from './useAttendance'
 
 const props = defineProps<{
-  entry: AttendanceEntry
+  entry: AttendanceRecord
   calculateACWR: (acute: number, chronic: number) => number
   getACWRBadgeClass: (acwr: number) => string
 }>()
 
-function setStatus(status: 'PRESENT' | 'ABSENT' | 'INJURED') {
+/** Per-entry acute workload (sRPE) used for badge calculation. */
+const acuteLoad = () => props.entry.session_workload ?? props.entry.duration_minutes * props.entry.rpe
+
+function setStatus(status: AttendanceRecord['status']) {
   props.entry.status = status
   if (status !== 'PRESENT') {
     props.entry.rpe = 1
-    props.entry.durationMinutes = 0
+    props.entry.duration_minutes = 0
   }
 }
 </script>
@@ -26,8 +30,8 @@ function setStatus(status: 'PRESENT' | 'ABSENT' | 'INJURED') {
   <tr class="hover:bg-gray-50/50 transition border-b border-gray-100">
     <!-- Athlete Details -->
     <td class="py-4 px-4">
-      <p class="font-semibold text-gray-900">{{ entry.fullName }}</p>
-      <p class="text-xs text-gray-500">{{ entry.category }} • {{ entry.sessionType }}</p>
+      <p class="font-semibold text-gray-900">{{ entry.athlete }}</p>
+      <p class="text-xs text-gray-500">{{ entry.session_type }}</p>
     </td>
 
     <!-- Status Buttons -->
@@ -51,11 +55,11 @@ function setStatus(status: 'PRESENT' | 'ABSENT' | 'INJURED') {
         </button>
         <button
           type="button"
-          @click="setStatus('INJURED')"
-          :class="entry.status === 'INJURED' ? 'bg-red-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'"
+          @click="setStatus('EXCUSED')"
+          :class="entry.status === 'EXCUSED' ? 'bg-amber-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'"
           class="px-2.5 py-1 text-xs font-medium border rounded-r-lg transition"
         >
-          Injured
+          Excused
         </button>
       </div>
     </td>
@@ -64,7 +68,7 @@ function setStatus(status: 'PRESENT' | 'ABSENT' | 'INJURED') {
     <td class="py-4 px-4">
       <div class="flex items-center gap-1">
         <input
-          v-model.number="entry.durationMinutes"
+          v-model.number="entry.duration_minutes"
           :disabled="entry.status !== 'PRESENT'"
           type="number"
           class="w-16 px-2 py-1 border rounded text-sm disabled:bg-gray-100 disabled:text-gray-400"
@@ -96,13 +100,13 @@ function setStatus(status: 'PRESENT' | 'ABSENT' | 'INJURED') {
     <td class="py-4 px-4 text-center">
       <div class="inline-flex flex-col items-center">
         <span
-          :class="getACWRBadgeClass(calculateACWR(entry.acute7DaySum, entry.chronic28DayAvg))"
+          :class="getACWRBadgeClass(calculateACWR(acuteLoad(), acuteLoad()))"
           class="px-2.5 py-1 rounded-full text-xs font-bold border"
         >
-          {{ calculateACWR(entry.acute7DaySum, entry.chronic28DayAvg) }}
+          {{ calculateACWR(acuteLoad(), acuteLoad()) }}
         </span>
         <span
-          v-if="calculateACWR(entry.acute7DaySum, entry.chronic28DayAvg) > 1.5"
+          v-if="calculateACWR(acuteLoad(), acuteLoad()) > 1.5"
           class="text-[10px] font-bold text-red-600 mt-1 uppercase tracking-tight"
         >
           High Injury Risk

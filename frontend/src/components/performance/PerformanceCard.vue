@@ -1,28 +1,31 @@
-<script setup lang="ts">
-/**
- * @fileoverview PerformanceCard component.
- * Displays a single race performance result, tracking proximity to national standards,
- * the time difference (delta), and visualizing completion on a custom progress bar.
- */
+<!--
+  frontend/src/components/performance/PerformanceCard.vue
 
-import type { RaceResult } from './types'
+  Displays a single race performance result, comparing the recorded time against
+  the ASA national qualifying standard and visualizing proximity on a progress bar.
+-->
+<script setup lang="ts">
+import { computed } from 'vue'
+import type { RacePerformanceRecord } from './usePerformance'
 
 const props = defineProps<{
-  result: RaceResult
+  result: RacePerformanceRecord
   formatSecondsToTime: (secs: number) => string
   calculateDelta: (rec: number, target: number) => { seconds: string; percentage: number }
 }>()
 
-const delta = props.calculateDelta(props.result.recordedTimeSeconds, props.result.asaStandardSeconds)
+const delta = computed(() =>
+  props.calculateDelta(props.result.recorded_time_seconds, props.result.asa_standard_seconds)
+)
 </script>
 
 <template>
   <div class="bg-white border rounded-xl p-5 shadow-sm space-y-3 hover:shadow-md transition">
     <div class="flex justify-between items-start">
       <div>
-        <h4 class="font-bold text-gray-900 text-base">{{ result.athleteName }}</h4>
+        <h4 class="font-bold text-gray-900 text-base">{{ result.athlete }}</h4>
         <span class="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-          {{ result.eventName }} • {{ result.date }}
+          {{ result.event_name }} • {{ result.date }}
         </span>
       </div>
 
@@ -37,11 +40,11 @@ const delta = props.calculateDelta(props.result.recordedTimeSeconds, props.resul
     <div class="grid grid-cols-2 gap-2 text-xs pt-2">
       <div>
         <p class="text-gray-400 font-medium">Recorded Time</p>
-        <p class="text-base font-bold text-gray-900">{{ formatSecondsToTime(result.recordedTimeSeconds) }}</p>
+        <p class="text-base font-bold text-gray-900">{{ formatSecondsToTime(result.recorded_time_seconds) }}</p>
       </div>
       <div>
         <p class="text-gray-400 font-medium">ASA National Benchmark</p>
-        <p class="text-base font-bold text-gray-600">{{ formatSecondsToTime(result.asaStandardSeconds) }}</p>
+        <p class="text-base font-bold text-gray-600">{{ formatSecondsToTime(result.asa_standard_seconds) }}</p>
       </div>
     </div>
 
@@ -52,7 +55,7 @@ const delta = props.calculateDelta(props.result.recordedTimeSeconds, props.resul
         <span class="text-blue-600">{{ delta.percentage }}%</span>
       </div>
       <div class="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-        <div 
+        <div
           class="bg-blue-600 h-full rounded-full transition-all duration-500"
           :style="{ width: `${delta.percentage}%` }"
         ></div>

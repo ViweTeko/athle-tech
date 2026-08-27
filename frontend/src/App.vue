@@ -13,7 +13,7 @@ import { Athlete } from './components/athletes/types';
 const notification = ref<string | null>(null);
 
 function handleLogWorkload(athlete: Athlete) {
-  notification.value = `Navigating to Workload Logger for ${athlete.full_name} (${athlete.athlete_id.slice(0, 8)}...)`;
+  notification.value = `Navigating to Workload Logger for ${athlete.first_name} ${athlete.last_name} (${athlete.id.slice(0, 8)}...)`;
   setTimeout(() => {
     notification.value = null;
   }, 4000);

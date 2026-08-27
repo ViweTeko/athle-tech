@@ -1,37 +1,37 @@
-<script setup lang="ts">
-/**
- * @fileoverview ResultEntryForm component.
- * Renders a form input grid allowing users to submit an athlete's race results,
- * specifying the name, event type, date, achieved time, and target ASA benchmark.
- */
+<!--
+  frontend/src/components/performance/ResultEntryForm.vue
 
+  Renders a form input grid allowing users to submit a race performance result.
+  Emits add-result with an Omit<RacePerformanceRecord, 'id' | 'delta_seconds'> payload
+  so the parent can post it to the Django REST API via addPerformance.
+-->
+<script setup lang="ts">
 import { ref } from 'vue'
-import type { EventCategory, RaceResult } from './types'
+import type { RacePerformanceRecord } from './usePerformance'
 
 const emit = defineEmits<{
-  (e: 'add-result', payload: Omit<RaceResult, 'id'>): void
+  (e: 'add-result', payload: Omit<RacePerformanceRecord, 'id' | 'delta_seconds'>): void
 }>()
 
-const athleteName = ref('')
-const eventName = ref<EventCategory>('800m')
+const athleteId = ref('')
+const eventName = ref<RacePerformanceRecord['event_name']>('800m')
 const date = ref(new Date().toISOString().split('T')[0])
 const recordedTimeSeconds = ref<number | null>(null)
 const asaStandardSeconds = ref<number | null>(null)
 
 function handleSubmit() {
-  if (!athleteName.value || !recordedTimeSeconds.value || !asaStandardSeconds.value) return
+  if (!athleteId.value || !recordedTimeSeconds.value || !asaStandardSeconds.value) return
 
   emit('add-result', {
-    athleteId: Date.now().toString(),
-    athleteName: athleteName.value,
-    eventName: eventName.value,
+    athlete: athleteId.value,
+    event_name: eventName.value,
     date: date.value,
-    recordedTimeSeconds: recordedTimeSeconds.value,
-    asaStandardSeconds: asaStandardSeconds.value
+    recorded_time_seconds: recordedTimeSeconds.value,
+    asa_standard_seconds: asaStandardSeconds.value,
   })
 
-  // Reset Form
-  athleteName.value = ''
+  // Reset form
+  athleteId.value = ''
   recordedTimeSeconds.value = null
   asaStandardSeconds.value = null
 }
@@ -43,8 +43,14 @@ function handleSubmit() {
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
       <div>
-        <label class="block text-xs font-semibold text-gray-500 mb-1">Athlete Name</label>
-        <input v-model="athleteName" type="text" placeholder="e.g. Sipho Ndlovu" required class="w-full px-3 py-1.5 border rounded-md focus:ring-2 focus:ring-blue-500" />
+        <label class="block text-xs font-semibold text-gray-500 mb-1">Athlete UUID</label>
+        <input
+          v-model="athleteId"
+          type="text"
+          placeholder="Paste athlete UUID"
+          required
+          class="w-full px-3 py-1.5 border rounded-md focus:ring-2 focus:ring-blue-500"
+        />
       </div>
 
       <div>
@@ -68,12 +74,26 @@ function handleSubmit() {
 
       <div>
         <label class="block text-xs font-semibold text-gray-500 mb-1">Recorded Time (Secs)</label>
-        <input v-model.number="recordedTimeSeconds" type="number" step="0.01" placeholder="112.40" required class="w-full px-3 py-1.5 border rounded-md focus:ring-2 focus:ring-blue-500" />
+        <input
+          v-model.number="recordedTimeSeconds"
+          type="number"
+          step="0.01"
+          placeholder="112.40"
+          required
+          class="w-full px-3 py-1.5 border rounded-md focus:ring-2 focus:ring-blue-500"
+        />
       </div>
 
       <div>
         <label class="block text-xs font-semibold text-gray-500 mb-1">ASA Target (Secs)</label>
-        <input v-model.number="asaStandardSeconds" type="number" step="0.01" placeholder="108.00" required class="w-full px-3 py-1.5 border rounded-md focus:ring-2 focus:ring-blue-500" />
+        <input
+          v-model.number="asaStandardSeconds"
+          type="number"
+          step="0.01"
+          placeholder="108.00"
+          required
+          class="w-full px-3 py-1.5 border rounded-md focus:ring-2 focus:ring-blue-500"
+        />
       </div>
     </div>
 

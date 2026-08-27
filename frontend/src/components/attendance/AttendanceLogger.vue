@@ -1,28 +1,45 @@
-<script setup lang="ts">
-/**
- * @fileoverview AttendanceLogger component.
- * Main view component for logging daily athlete attendance, training session details,
- * and monitoring active injury risks via the ACWR index.
- */
+<!--
+  frontend/src/components/attendance/AttendanceLogger.vue
 
+  Main view component for logging daily athlete attendance, training session details,
+  and monitoring active injury risks via the ACWR index.
+-->
+<script setup lang="ts">
+import { onMounted } from 'vue'
 import { useAttendance } from './useAttendance'
 import SessionSetupBar from './SessionSetupBar.vue'
 import AttendanceTableRow from './AttendanceTableRow.vue'
 
 const {
+  logs,
+  loading,
+  error,
   sessionDate,
   globalSessionType,
   globalDuration,
-  attendanceList,
-  highRiskCount,
   totalPresent,
+  highRiskCount,
   calculateACWR,
   getACWRBadgeClass,
-  applyGlobalSettings
+  applyGlobalSettings,
+  fetchLogs,
+  logAttendance,
 } = useAttendance()
 
-function handleSave() {
-  console.log('Saving attendance payload to backend:', attendanceList.value)
+onMounted(() => fetchLogs())
+
+/** Persist all locally modified log entries back to the backend. */
+async function handleSave() {
+  for (const entry of logs.value) {
+    await logAttendance({
+      athlete: entry.athlete,
+      date: entry.date,
+      status: entry.status,
+      session_type: entry.session_type,
+      duration_minutes: entry.duration_minutes,
+      rpe: entry.rpe,
+    })
+  }
 }
 </script>
 
@@ -31,21 +48,31 @@ function handleSave() {
     <!-- Header Summary -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">Attendance & Workload Logger</h1>
+        <h1 class="text-2xl font-bold text-gray-900">Attendance &amp; Workload Logger</h1>
         <p class="text-sm text-gray-500">Log daily Session RPE and monitor Acute-to-Chronic Workload Ratio (ACWR)</p>
       </div>
 
       <div class="flex items-center gap-3">
         <span class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-semibold">
-          Present: {{ totalPresent }}/{{ attendanceList.length }}
+          Present: {{ totalPresent }}/{{ logs.length }}
         </span>
         <span
           :class="highRiskCount > 0 ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-100 text-gray-700'"
           class="px-3 py-1.5 rounded-lg text-xs font-semibold"
         >
-          ACWR Alert (>1.5): {{ highRiskCount }} Athlete(s)
+          ACWR Alert (&gt;1.5): {{ highRiskCount }} Athlete(s)
         </span>
       </div>
+    </div>
+
+    <!-- Error Banner -->
+    <div v-if="error" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+      {{ error }}
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="loading && !logs.length" class="text-center py-8 text-gray-400 text-sm">
+      Loading attendance records...
     </div>
 
     <!-- Global Controls Component -->
@@ -71,14 +98,19 @@ function handleSave() {
         </thead>
         <tbody>
           <AttendanceTableRow
-            v-for="entry in attendanceList"
-            :key="entry.athleteId"
+            v-for="entry in logs"
+            :key="entry.id ?? entry.athlete"
             :entry="entry"
             :calculate-a-c-w-r="calculateACWR"
             :get-a-c-w-r-badge-class="getACWRBadgeClass"
           />
         </tbody>
       </table>
+
+      <!-- Empty state -->
+      <div v-if="!loading && !logs.length" class="text-center py-8 text-gray-400 text-sm">
+        No attendance records found. Fetch logs or add a session above.
+      </div>
     </div>
   </div>
 </template>

@@ -1,54 +1,62 @@
 /**
- * @fileoverview Defines the type definitions, interfaces, and lookup labels
+ * @fileoverview Defines type definitions, interfaces, and lookup labels
  * for the Athlete management and Roster Engine features.
  */
 
 /**
- * Supported age divisions for athletic classification.
+ * Gender category matching backend choices.
  */
-export type AgeCategory = 'U16' | 'U18' | 'U20' | 'SENIOR';
+export type GenderCategory = 'M' | 'F';
 
 /**
- * Primary track and road racing disciplines for categorization.
+ * Primary discipline/event matching backend choices.
  */
-export type PrimaryDiscipline = 'TRACK_FIELD' | 'CROSS_COUNTRY' | 'ROAD';
+export type PrimaryEvent = 'SPRINTS' | 'MIDDLE' | 'LONG';
 
 /**
- * Represeents a registered athlete on the roster.
+ * Athlete status matching backend choices.
+ */
+export type RosterStatus = 'ACTIVE' | 'INJURED' | 'RESTING' | 'INACTIVE';
+
+/**
+ * Represents a registered athlete on the roster retrieved from PostgreSQL.
  */
 export interface Athlete {
   /** Unique UUID v4 identifying the athlete */
-  athlete_id: string;
-  /** Full name of the athlete */
-  full_name: string;
-  /** Age category classification */
-  age_category: AgeCategory;
-  /** Primary focus discipline */
-  primary_discipline: PrimaryDiscipline;
-  /** ISO Date string when the record was created */
+  id: string;
+  /** Athlete's first name */
+  first_name: string;
+  /** Athlete's last name */
+  last_name: string;
+  /** Date of birth (YYYY-MM-DD) */
+  date_of_birth: string;
+  /** Gender: 'M' or 'F' */
+  gender: GenderCategory;
+  /** Primary focus event category */
+  primary_event: PrimaryEvent;
+  /** Active status on roster */
+  status: RosterStatus;
+  /** Date string when the athlete was registered */
   created_at: string;
+  /** Date string when the athlete was updated */
+  updated_at: string;
 }
 
 /**
- * Filter option representing either a specific discipline or all disciplines.
+ * User-friendly labels for primary event categories.
  */
-export type DisciplineFilter = 'ALL' | PrimaryDiscipline;
-
-/**
- * User-facing labels for the PrimaryDiscipline keys.
- */
-export const DISCIPLINE_LABELS: Record<PrimaryDiscipline, string> = {
-  TRACK_FIELD: 'Track & Field',
-  CROSS_COUNTRY: 'Cross Country',
-  ROAD: 'Road Racing',
+export const PRIMARY_EVENT_LABELS: Record<PrimaryEvent, string> = {
+  SPRINTS: 'Sprints (100m-400m)',
+  MIDDLE: 'Middle Distance (800m-1500m)',
+  LONG: 'Long Distance (5000m-Marathon)',
 };
 
 /**
- * User-facing labels for the AgeCategory keys.
+ * User-friendly labels for athlete status.
  */
-export const AGE_CATEGORY_LABELS: Record<AgeCategory, string> = {
-  U16: 'Under 16',
-  U18: 'Under 18',
-  U20: 'Under 20',
-  SENIOR: 'Senior',
+export const STATUS_LABELS: Record<RosterStatus, string> = {
+  ACTIVE: 'Active',
+  INJURED: 'Injured',
+  RESTING: 'Resting',
+  INACTIVE: 'Inactive',
 };
