@@ -6,13 +6,14 @@
  */
 
 import { createRouter, createWebHistory } from 'vue-router'
+import WorkloadDashboard from '../components/analytics/WorkloadDashboard.vue'
 import AthleteRoster from '../components/athletes/AthleteRoster.vue'
 
 const routes = [
   {
     path: '/',
     name: 'Dashboard',
-    component: AthleteRoster, // Default home view loads the roster
+    component: WorkloadDashboard,
   },
   {
     path: '/athletes',

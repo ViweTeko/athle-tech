@@ -1,25 +1,24 @@
 /**
- * frontend/src/composables/useAttendance.ts
+ * frontend/src/components/attendance/useAttendance.ts
  *
  * Vue 3 Composable for fetching attendance records and calculating 
  * Acute:Chronic Workload Ratios (ACWR) for athletes using a 28-day rolling window.
- *
- * ACWR Formula:
- * - Acute Workload   = Sum of daily workload over the last 7 days / 7
- * - Chronic Workload = Sum of daily workload over the last 28 days / 28
- * - ACWR             = Acute Workload / Chronic Workload
  */
 
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
+
+export type SessionType = 'TRACK' | 'LONG_RUN' | 'TEMPO' | 'STRENGTH' | 'RECOVERY';
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'EXCUSED';
 
 export interface AttendanceRecord {
-  id: string;
-  athlete: string; // Athlete UUID or ID
+  id?: string;
+  athlete: string; // Athlete UUID
   date: string; // YYYY-MM-DD
-  status: 'PRESENT' | 'ABSENT' | 'EXCUSED' | 'INJURED';
-  srpe: number | null;
+  status: AttendanceStatus;
+  session_type: SessionType;
   duration_minutes: number;
-  workload: number; // sRPE * duration_minutes
+  rpe: number; // 1 to 10
+  session_workload?: number; // Computed property from backend (duration * rpe)
   notes?: string;
 }
 
@@ -40,7 +39,6 @@ export function useAttendance() {
 
   /**
    * Fetch attendance logs from Django REST API.
-   * Accepts an optional athleteId to filter logs per athlete.
    */
   const fetchAttendance = async (athleteId?: string) => {
     loading.value = true;
@@ -64,50 +62,53 @@ export function useAttendance() {
   };
 
   /**
-   * Calculate ACWR and workload stats for a specific athlete over a target date (default: today).
+   * Calculate ACWR and workload stats for a specific athlete over a target date.
    */
   const calculateACWR = (athleteId: string, referenceDateStr?: string): ACWRMetrics => {
     const refDate = referenceDateStr ? new Date(referenceDateStr) : new Date();
 
-    // Boundary dates
     const sevenDaysAgo = new Date(refDate);
     sevenDaysAgo.setDate(refDate.getDate() - 7);
 
     const twentyEightDaysAgo = new Date(refDate);
     twentyEightDaysAgo.setDate(refDate.getDate() - 28);
 
-    // Filter athlete records within the 28-day window
     const athleteLogs = attendanceLogs.value.filter((log) => {
-      if (log.athlete !== athleteId) return false;
+      if (log.athlete !== athleteId || log.status !== 'PRESENT') return false;
       const logDate = new Date(log.date);
       return logDate >= twentyEightDaysAgo && logDate <= refDate;
     });
 
-    // 1. Calculate Acute Workload (Last 7 Days)
+    // 1. Acute Workload (7 Days)
     const acuteLogs = athleteLogs.filter((log) => new Date(log.date) >= sevenDaysAgo);
-    const totalAcuteWorkload = acuteLogs.reduce((sum, log) => sum + (log.workload || 0), 0);
+    const totalAcuteWorkload = acuteLogs.reduce(
+      (sum, log) => sum + (log.session_workload ?? log.duration_minutes * log.rpe),
+      0
+    );
     const acuteWorkload = Math.round(totalAcuteWorkload / 7);
 
-    // 2. Calculate Chronic Workload (Last 28 Days)
-    const totalChronicWorkload = athleteLogs.reduce((sum, log) => sum + (log.workload || 0), 0);
+    // 2. Chronic Workload (28 Days)
+    const totalChronicWorkload = athleteLogs.reduce(
+      (sum, log) => sum + (log.session_workload ?? log.duration_minutes * log.rpe),
+      0
+    );
     const chronicWorkload = Math.round(totalChronicWorkload / 28);
 
-    // 3. Calculate ACWR Ratio
-    // Protect against division by zero if chronic workload is 0
+    // 3. ACWR Ratio
     const rawAcwr = chronicWorkload > 0 ? acuteWorkload / chronicWorkload : 0;
     const acwr = Number(rawAcwr.toFixed(2));
 
-    // 4. Classify ACWR Risk Zone (Gabbett ACWR Framework)
+    // 4. Classify Risk
     let status: ACWRMetrics['status'] = 'SWEET_SPOT';
     let statusLabel = 'Optimal Load (0.8 - 1.3)';
 
     if (acwr < 0.8) {
       status = 'UNDERTRAINED';
       statusLabel = 'Under-trained (< 0.8)';
-    } else if (acwr >= 0.8 && acwr <= 1.3) {
+    } else if (acwr <= 1.3) {
       status = 'SWEET_SPOT';
       statusLabel = 'Sweet Spot (0.8 - 1.3)';
-    } else if (acwr > 1.3 && acwr <= 1.5) {
+    } else if (acwr <= 1.5) {
       status = 'HIGH_RISK';
       statusLabel = 'Elevated Risk (1.3 - 1.5)';
     } else {

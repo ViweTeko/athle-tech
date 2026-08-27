@@ -2,8 +2,8 @@
   frontend/src/components/attendance/AttendanceLogger.vue
 
   Attendance and Workload Logger component for Athle-Tech.
-  Fetches active roster members from DRF, calculates sRPE workload 
-  (sRPE score * duration in minutes), and submits daily logs to /api/attendance/.
+  Fetches active roster members from DRF, allows coaches to set duration,
+  session type, and RPE, and submits daily logs to /api/attendance/.
 -->
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
@@ -16,40 +16,43 @@ interface AthleteOption {
   status: string;
 }
 
-interface LogEntry {
-  athlete_id: string;
-  status: 'PRESENT' | 'ABSENT' | 'EXCUSED' | 'INJURED';
-  srpe: number; // Scale 1 (Rest/Very Light) to 10 (Max Effort)
+type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'EXCUSED';
+type SessionType = 'TRACK' | 'LONG_RUN' | 'TEMPO' | 'STRENGTH' | 'RECOVERY';
+
+interface LogFormState {
+  athlete: string;
+  date: string;
+  status: AttendanceStatus;
+  session_type: SessionType;
   duration_minutes: number;
-  notes: string;
+  rpe: number;
 }
 
 const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
 // Reactive State
 const athletes = ref<AthleteOption[]>([]);
-const sessionDate = ref<string>(new Date().toISOString().split('T')[0]);
 const loading = ref<boolean>(false);
 const submitting = ref<boolean>(false);
 const error = ref<string | null>(null);
 const successMessage = ref<string | null>(null);
 
-// Active Form State
-const selectedAthleteId = ref<string>('');
-const form = ref<LogEntry>({
-  athlete_id: '',
+// Form State
+const form = ref<LogFormState>({
+  athlete: '',
+  date: new Date().toISOString().split('T')[0],
   status: 'PRESENT',
-  srpe: 5,
+  session_type: 'TRACK',
   duration_minutes: 60,
-  notes: '',
+  rpe: 5,
 });
 
 /**
- * Calculated Daily Workload Load Value: sRPE (1-10) * Duration (mins)
+ * Calculated Client-Side Display Workload: RPE (1-10) * Duration (mins)
  */
 const calculatedWorkload = computed(() => {
   if (form.value.status !== 'PRESENT') return 0;
-  return form.value.srpe * form.value.duration_minutes;
+  return form.value.rpe * form.value.duration_minutes;
 });
 
 /**
@@ -64,8 +67,7 @@ const fetchAthletes = async () => {
     const data = await res.json();
     athletes.value = data.filter((a: AthleteOption) => a.status !== 'INACTIVE');
     if (athletes.value.length > 0) {
-      selectedAthleteId.value = athletes.value[0].id;
-      form.value.athlete_id = athletes.value[0].id;
+      form.value.athlete = athletes.value[0].id;
     }
   } catch (err: any) {
     error.value = err.message || 'Error loading roster from backend.';
@@ -75,10 +77,10 @@ const fetchAthletes = async () => {
 };
 
 /**
- * Submit Attendance Log to DRF API
+ * Submit Attendance Log to DRF API matching AttendanceLogSerializer
  */
 const handleSubmitLog = async () => {
-  if (!form.value.athlete_id) {
+  if (!form.value.athlete) {
     error.value = 'Please select an athlete.';
     return;
   }
@@ -88,13 +90,12 @@ const handleSubmitLog = async () => {
   successMessage.value = null;
 
   const payload = {
-    athlete: form.value.athlete_id,
-    date: sessionDate.value,
+    athlete: form.value.athlete,
+    date: form.value.date,
     status: form.value.status,
-    srpe: form.value.status === 'PRESENT' ? form.value.srpe : null,
+    session_type: form.value.session_type,
     duration_minutes: form.value.status === 'PRESENT' ? form.value.duration_minutes : 0,
-    workload: calculatedWorkload.value,
-    notes: form.value.notes,
+    rpe: form.value.rpe,
   };
 
   try {
@@ -111,20 +112,13 @@ const handleSubmitLog = async () => {
       throw new Error(JSON.stringify(errData));
     }
 
-    successMessage.value = `Logged ${calculatedWorkload.value} AU workload for selected athlete.`;
-    
-    // Reset non-static form fields
-    form.value.notes = '';
-    form.value.srpe = 5;
+    successMessage.value = `Logged ${calculatedWorkload.value} AU workload successfully.`;
+    form.value.rpe = 5;
   } catch (err: any) {
     error.value = err.message || 'Failed to submit attendance log.';
   } finally {
     submitting.value = false;
   }
-};
-
-const handleAthleteChange = () => {
-  form.value.athlete_id = selectedAthleteId.value;
 };
 
 onMounted(() => {
@@ -134,14 +128,14 @@ onMounted(() => {
 
 <template>
   <div class="attendance-logger max-w-3xl mx-auto bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl space-y-6">
-    <div class="border-b border-slate-700 pb-4 flex justify-between items-center">
+    <div class="border-b border-slate-700 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div>
         <h2 class="text-xl font-bold text-slate-100">Log Session Attendance & Workload</h2>
-        <p class="text-xs text-slate-400">Record sRPE and duration to compute Acute:Chronic Workload Ratios.</p>
+        <p class="text-xs text-slate-400">Record sRPE and duration to track acute and chronic training load.</p>
       </div>
       <div>
         <input
-          v-model="sessionDate"
+          v-model="form.date"
           type="date"
           class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
         />
@@ -168,8 +162,7 @@ onMounted(() => {
       <div>
         <label class="block text-xs font-semibold text-slate-300 mb-2">Select Athlete</label>
         <select
-          v-model="selectedAthleteId"
-          @change="handleAthleteChange"
+          v-model="form.athlete"
           class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-100 text-sm focus:outline-none focus:border-emerald-500"
         >
           <option v-for="athlete in athletes" :key="athlete.id" :value="athlete.id">
@@ -181,10 +174,10 @@ onMounted(() => {
       <!-- Attendance Status Toggle -->
       <div>
         <label class="block text-xs font-semibold text-slate-300 mb-2">Attendance Status</label>
-        <div class="grid grid-cols-4 gap-2">
+        <div class="grid grid-cols-3 gap-2">
           <button
             type="button"
-            v-for="status in ['PRESENT', 'ABSENT', 'EXCUSED', 'INJURED'] as const"
+            v-for="status in ['PRESENT', 'ABSENT', 'EXCUSED'] as const"
             :key="status"
             @click="form.status = status"
             :class="[
@@ -199,16 +192,47 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- Workload Inputs (Only shown when PRESENT) -->
+      <!-- Session Configuration (Session Type, Duration, RPE) -->
       <div v-if="form.status === 'PRESENT'" class="space-y-6 bg-slate-900/60 p-5 rounded-xl border border-slate-700/60">
-        <!-- sRPE Range Slider -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <!-- Session Type -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Session Type</label>
+            <select
+              v-model="form.session_type"
+              class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-100 text-sm focus:outline-none focus:border-emerald-500"
+            >
+              <option value="TRACK">Track Intervals</option>
+              <option value="LONG_RUN">Long Run</option>
+              <option value="TEMPO">Tempo Run</option>
+              <option value="STRENGTH">Gym / Strength</option>
+              <option value="RECOVERY">Active Recovery</option>
+            </select>
+          </div>
+
+          <!-- Duration Input -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Duration (Minutes)</label>
+            <input
+              v-model.number="form.duration_minutes"
+              type="number"
+              min="5"
+              max="300"
+              step="5"
+              required
+              class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-100 text-sm focus:outline-none focus:border-emerald-500 font-mono"
+            />
+          </div>
+        </div>
+
+        <!-- RPE Scale Range Slider -->
         <div>
           <div class="flex justify-between items-center mb-1">
-            <label class="text-xs font-semibold text-slate-300">Session RPE (RPE 1 - 10)</label>
-            <span class="text-emerald-400 font-bold font-mono text-sm">RPE {{ form.srpe }}</span>
+            <label class="text-xs font-semibold text-slate-300">Session RPE (Scale 1 - 10)</label>
+            <span class="text-emerald-400 font-bold font-mono text-sm">RPE {{ form.rpe }}</span>
           </div>
           <input
-            v-model.number="form.srpe"
+            v-model.number="form.rpe"
             type="range"
             min="1"
             max="10"
@@ -222,38 +246,13 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Duration Input -->
-        <div>
-          <label class="block text-xs font-semibold text-slate-300 mb-1">Duration (Minutes)</label>
-          <input
-            v-model.number="form.duration_minutes"
-            type="number"
-            min="5"
-            max="300"
-            step="5"
-            required
-            class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-slate-100 text-sm focus:outline-none focus:border-emerald-500 font-mono"
-          />
-        </div>
-
         <!-- Computed Workload Display -->
         <div class="bg-slate-950 p-4 rounded-lg border border-slate-800 flex items-center justify-between">
           <span class="text-xs text-slate-400 font-medium">Computed Session Workload:</span>
           <span class="text-lg font-bold text-emerald-400 font-mono">
-            {{ calculatedWorkload }} AU <span class="text-xs text-slate-500 font-normal">({{ form.srpe }} × {{ form.duration_minutes }}m)</span>
+            {{ calculatedWorkload }} AU <span class="text-xs text-slate-500 font-normal">({{ form.rpe }} × {{ form.duration_minutes }}m)</span>
           </span>
         </div>
-      </div>
-
-      <!-- Session Notes -->
-      <div>
-        <label class="block text-xs font-semibold text-slate-300 mb-1">Session / Recovery Notes (Optional)</label>
-        <textarea
-          v-model="form.notes"
-          rows="2"
-          placeholder="e.g., Felt strong during 400m intervals; slight tightness in right hamstring."
-          class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-slate-100 text-sm focus:outline-none focus:border-emerald-500"
-        ></textarea>
       </div>
 
       <!-- Submit Button -->
