@@ -5,10 +5,14 @@ Defines Django REST Framework (DRF) ViewSets for the Athle-Tech application.
 Exposes RESTful CRUD endpoints for Athlete roster management, Attendance logging,
 and Race Performance tracking.
 """
+from datetime import date, timedelta
+from django.shortcuts import get_object_or_404
 
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, status
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.decorators import action
+
 from .models import Athlete, AttendanceLog, RacePerformance
 from .serializers import (
     AthleteSerializer,

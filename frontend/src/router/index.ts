@@ -6,7 +6,7 @@
  */
 
 import { createRouter, createWebHistory } from 'vue-router'
-import WorkloadDashboard from '../components/analytics/WorkloadDashboard.vue'
+import WorkloadDashboard from '../analytics/WorkloadDashboard.vue'
 import AthleteRoster from '../components/athletes/AthleteRoster.vue'
 
 const routes = [

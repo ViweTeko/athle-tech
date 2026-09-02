@@ -17,9 +17,10 @@ router.register(r'attendance', AttendanceLogViewSet, basename='attendance')
 router.register(r'performances', RacePerformanceViewSet, basename='performance')
 
 urlpatterns = [
-    path('api/', include(router.urls)),
+    # Router already mounted under 'api/' in config/urls.py
+    path('', include(router.urls)),
     path(
-        'api/analytics/workload/<uuid:athlete_id>/',
+        'analytics/workload/<uuid:athlete_id>/',
         AthleteWorkloadAnalyticsView.as_view(),
         name='athlete-workload-analytics',
     ),
