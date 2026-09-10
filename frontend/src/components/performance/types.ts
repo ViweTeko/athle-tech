@@ -10,40 +10,29 @@ export type TrackAndFieldEvent =
     | '200M'
     | '400M'
     | '100MH'
-    | '110MH'
-    | '400MH'
+    | 'HURDLES'
     // Middle & Long Distance
     | '800M'
     | '1500M'
     | '3000M'
     | '5000M'
-    | '10000M'
-    | 'HALF_MARATHON'
+    | '10 KM'
+    | '21.1 KM'
     | 'MARATHON'
     // Jumps & Throws
-    | 'LONG_JUMP'
-    | 'HIGH_JUMP'
-    | 'TRIPLE_JUMP'
-    | 'POLE_VAULT'
-    | 'SHOT_PUT'
-    | 'DISCUS'
-    | 'JAVELIN';
+    | 'JUMPS'
+    | 'THROWS';
 
 export type EventCategory = 'TRACK' | 'FIELD';
 
 export interface RacePerformanceRecord {
     id: string;
     athlete: string; // UUID
-    athlete_name?: string;
-    event: TrackAndFieldEvent;
-    result_value: number; // Seconds for track, meters for field
-    result_display: string; // e.g., "10.45s", "03:42.10", "7.85m"
-    competition_name: string;
-    competition_date: string;
-    wind_reading?: number | null; // e.g. +1.2 m/s
-    is_personal_best?: boolean;
-    notes?: string;
-    created_at?: string;
+    event_name: string;
+    date: string;
+    recorded_time_seconds: string | number;
+    asa_standard_seconds: string | number;
+    delta_seconds: number;
 }
 
 export interface AsaStandard {

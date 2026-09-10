@@ -3,6 +3,10 @@
 import { ref, computed, onMounted } from 'vue';
 import { useAnalytics } from './useAnalytics';
 
+onMounted(() => {
+  fetchAthletesList();
+});
+
 interface AthleteOption {
   id: string;
   first_name: string;

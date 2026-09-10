@@ -24,7 +24,7 @@ const fetchAthletes = async () => {
 
 const filteredPerformances = computed(() => {
   if (selectedEventFilter.value === 'ALL') return performances.value;
-  return performances.value.filter((p) => p.event === selectedEventFilter.value);
+  return performances.value.filter((p) => p.event_name === selectedEventFilter.value);
 });
 
 const handleResultSubmit = async (payload: any) => {
