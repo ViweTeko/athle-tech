@@ -114,8 +114,7 @@ class AthleteWorkloadAnalyticsView(APIView):
 
     def get(self, request, athlete_id):
         athlete = get_object_or_404(Athlete, id=athlete_id)
-        
-        # Reference date is either passed query param or today
+
         ref_date_str = request.query_params.get('date')
         if ref_date_str:
             try:
@@ -131,18 +130,17 @@ class AthleteWorkloadAnalyticsView(APIView):
         start_date_28d = end_date - timedelta(days=27)  # 28 days inclusive
         start_date_7d = end_date - timedelta(days=6)    # 7 days inclusive
 
-        # Fetch all attendance logs for the 28-day window in a single query
+        # Fetch model instances directly so the @property `session_workload` is accessible
         logs = (
             AttendanceLog.objects.filter(
                 athlete=athlete,
                 date__range=[start_date_28d, end_date]
             )
-            .values('date', 'session_workload', 'rpe', 'duration_minutes', 'status')
             .order_by('date')
         )
 
-        # Index logs by date string
-        log_map = {log['date'].isoformat(): log for log in logs}
+        # Index logs by ISO date string
+        log_map = {log.date.isoformat(): log for log in logs}
 
         # Build 28-day continuous timeline (filling rest days with 0 AU)
         daily_breakdown = []
@@ -154,7 +152,7 @@ class AthleteWorkloadAnalyticsView(APIView):
             day_iso = current_day.isoformat()
             log = log_map.get(day_iso)
 
-            workload = log['session_workload'] if log and log['session_workload'] else 0
+            workload = log.session_workload if log else 0
             total_28d_workload += workload
 
             if current_day >= start_date_7d:
@@ -164,9 +162,9 @@ class AthleteWorkloadAnalyticsView(APIView):
                 "date": day_iso,
                 "date_label": current_day.strftime("%b %d"),
                 "workload": workload,
-                "rpe": log['rpe'] if log else None,
-                "duration_minutes": log['duration_minutes'] if log else 0,
-                "status": log['status'] if log else 'REST',
+                "rpe": log.rpe if log else None,
+                "duration_minutes": log.duration_minutes if log else 0,
+                "status": log.status if log else 'REST',
                 "is_acute_window": current_day >= start_date_7d,
             })
 
