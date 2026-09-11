@@ -7,6 +7,7 @@
 -->
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { apiFetch } from '../../utils/api';
 
 interface AthleteOption {
   id: string;

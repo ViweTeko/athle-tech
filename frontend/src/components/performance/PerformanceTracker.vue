@@ -4,6 +4,7 @@ import { ref, computed, onMounted } from 'vue';
 import { usePerformance } from './usePerformance';
 import PerformanceCard from './PerformanceCard.vue';
 import ResultEntryForm from './ResultEntryForm.vue';
+import { apiFetch } from '../../utils/api';
 import type { TrackAndFieldEvent } from './types';
 
 const { performances, loading, error, fetchPerformances, createPerformance } = usePerformance();
@@ -13,10 +14,7 @@ const selectedEventFilter = ref<string>('ALL');
 
 const fetchAthletes = async () => {
   try {
-    const res = await fetch('http://127.0.0.1:8000/api/athletes/');
-    if (res.ok) {
-      athletes.value = await res.json();
-    }
+    athletes.value = await apiFetch<Array<{ id: string; first_name: string; last_name: string; primary_event: string }>>('/athletes/');
   } catch (err) {
     console.error('Failed to load athletes for dropdown', err);
   }
