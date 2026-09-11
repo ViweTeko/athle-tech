@@ -1,10 +1,14 @@
 /**
- * frontend/src/analytics/useAnalytics.ts
+ * @fileoverview Domain Composable: Workload Analytics & ACWR Engine.
+ * @module frontend/src/analytics/useAnalytics
  *
- * Composable for communicating with backend ACWR workload analytics API.
+ * Provides reactive state management and authenticated API communication for
+ * continuous 28-day athletic workload telemetry, Tim Gabbett's Acute:Chronic
+ * Workload Ratio (ACWR) calculations, and risk zone classifications.
  */
 
 import { ref } from 'vue';
+import { apiFetch } from '../utils/api';
 
 export interface DailyTrendPoint {
     date: string;
@@ -32,31 +36,29 @@ export interface AnalyticsResponse {
     daily_trend: DailyTrendPoint[];
 }
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
-
 export function useAnalytics() {
     const analyticsData = ref<AnalyticsResponse | null>(null);
     const loading = ref<boolean>(false);
     const error = ref<string | null>(null);
 
-    const fetchAthleteAnalytics = async (athleteId: string, refDate?: string) => {
+    /**
+     * Fetches computed 28-day workload metrics and rolling window telemetry for a specified athlete.
+     *
+     * @param athleteId - Target athlete UUID v4.
+     * @param refDate - Optional ISO date string (YYYY-MM-DD) serving as timeline anchor.
+     */
+    const fetchAthleteAnalytics = async (athleteId: string, refDate?: string): Promise<void> => {
         if (!athleteId) return;
 
         loading.value = true;
         error.value = null;
 
         try {
-            const url = refDate
-                ? `${API_BASE_URL}/analytics/workload/${athleteId}/?date=${refDate}`
-                : `${API_BASE_URL}/analytics/workload/${athleteId}/`;
+            const endpoint = refDate
+                ? `/analytics/workload/${athleteId}/?date=${refDate}`
+                : `/analytics/workload/${athleteId}/`;
 
-            const res = await fetch(url);
-            if (!res.ok) {
-                if (res.status === 404) throw new Error('Athlete not found.');
-                throw new Error(`Server returned status ${res.status}`);
-            }
-
-            analyticsData.value = await res.json();
+            analyticsData.value = await apiFetch<AnalyticsResponse>(endpoint);
         } catch (err: any) {
             error.value = err.message || 'Failed to fetch analytics metrics.';
             analyticsData.value = null;

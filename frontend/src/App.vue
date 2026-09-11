@@ -9,14 +9,15 @@
 import { ref } from 'vue';
 import { RouterLink, RouterView } from 'vue-router';
 import { Athlete } from './components/athletes/types';
+import { useAuth } from './auth/useAuth';
 
+
+const { isAuthenticated, logout } = useAuth();
 const notification = ref<string | null>(null);
 
 function handleLogWorkload(athlete: Athlete) {
-  notification.value = `Navigating to Workload Logger for ${athlete.first_name} ${athlete.last_name} (${athlete.id.slice(0, 8)}...)`;
-  setTimeout(() => {
-    notification.value = null;
-  }, 4000);
+  notification.value = `Navigating to Workload Logger for ${athlete.first_name} ${athlete.last_name}`;
+  setTimeout(() => { notification.value = null; }, 4000);
 }
 </script>
 
@@ -34,6 +35,13 @@ function handleLogWorkload(athlete: Athlete) {
             class="text-slate-300 hover:text-emerald-400 transition-colors py-1"
             active-class="text-emerald-400 border-b-2 border-emerald-400"
           >
+          <button
+              v-if="isAuthenticated"
+              @click="logout"
+              class="text-xs text-rose-400 hover:text-rose-300 font-semibold px-2 py-1 rounded border border-rose-950 hover:border-rose-800 transition-colors"
+          >
+              Logout
+          </button>
             Dashboard
           </RouterLink>
           <RouterLink 

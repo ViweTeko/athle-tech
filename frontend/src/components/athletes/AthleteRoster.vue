@@ -1,22 +1,21 @@
 <!--
-  frontend/src/components/athletes/AthleteRoster.vue
+  @fileoverview Screen 1 Component: Athlete Roster & Squad Orchestrator.
+  @module frontend/src/components/athletes/AthleteRoster.vue
 
-  Athlete Roster view container for Athle-Tech.
-  Orchestrates fetching athletes from DRF, filtering via RosterToolbar and useAthletes,
-  rendering cards via AthleteCard, and adding new athletes via modal.
+  Coordinates squad roster retrieval, client-side discipline and status filtering,
+  modal-based athlete registration, and workload logging dispatches.
 -->
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { Athlete, PrimaryEvent, RosterStatus } from './types';
 import { useAthletes } from './useAthletes';
+import { apiFetch } from '../../utils/api';
 import RosterToolbar from './RosterToolbar.vue';
 import AthleteCard from './AthleteCard.vue';
 
 const emit = defineEmits<{
   (e: 'log-workload', athlete: Athlete): void;
 }>();
-
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
 // Base reactive state
 const athletes = ref<Athlete[]>([]);
@@ -44,18 +43,13 @@ const newAthlete = ref({
 });
 
 /**
- * Fetch all athletes from the Django REST API
+ * Fetches the active athlete roster from the authenticated DRF endpoint.
  */
-const fetchAthletes = async () => {
+const fetchAthletes = async (): Promise<void> => {
   loading.value = true;
   error.value = null;
   try {
-    const response = await fetch(`${API_BASE_URL}/athletes/`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch athletes: ${response.statusText}`);
-    }
-    const data: Athlete[] = await response.json();
-    athletes.value = data;
+    athletes.value = await apiFetch<Athlete[]>('/athletes/');
   } catch (err: any) {
     error.value = err.message || 'Error connecting to Django API backend';
   } finally {
@@ -64,9 +58,9 @@ const fetchAthletes = async () => {
 };
 
 /**
- * Submit a new athlete record to the DRF API
+ * Submits a new athlete profile to PostgreSQL via DRF.
  */
-const handleAddAthlete = async () => {
+const handleAddAthlete = async (): Promise<void> => {
   if (!newAthlete.value.first_name || !newAthlete.value.last_name || !newAthlete.value.date_of_birth) {
     return;
   }
@@ -74,20 +68,11 @@ const handleAddAthlete = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const response = await fetch(`${API_BASE_URL}/athletes/`, {
+    const createdAthlete = await apiFetch<Athlete>('/athletes/', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify(newAthlete.value),
     });
 
-    if (!response.ok) {
-      const errData = await response.json();
-      throw new Error(JSON.stringify(errData));
-    }
-
-    const createdAthlete: Athlete = await response.json();
     athletes.value.unshift(createdAthlete);
 
     // Reset Form & Close Modal
@@ -128,7 +113,7 @@ onMounted(() => {
       </button>
     </div>
 
-    <!-- Toolbar Filters (Search, Status Pills, Event Discipline Pills) -->
+    <!-- Toolbar Filters -->
     <RosterToolbar
       v-model:searchQuery="searchQuery"
       v-model:selectedStatus="selectedStatus"

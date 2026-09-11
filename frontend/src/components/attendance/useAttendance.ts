@@ -1,11 +1,13 @@
 /**
- * frontend/src/components/attendance/useAttendance.ts
+ * @fileoverview Domain Composable: Attendance & Workload Logger.
+ * @module frontend/src/components/attendance/useAttendance
  *
- * Vue 3 Composable for fetching attendance records and calculating 
- * Acute:Chronic Workload Ratios (ACWR) for athletes using a 28-day rolling window.
+ * Encapsulates CRUD operations for daily session logs and provides client-side
+ * fallback calculations for Acute:Chronic Workload Ratios (ACWR).
  */
 
 import { ref } from 'vue';
+import { apiFetch } from '../../utils/api';
 
 export type SessionType = 'TRACK' | 'LONG_RUN' | 'TEMPO' | 'STRENGTH' | 'RECOVERY';
 export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'EXCUSED';
@@ -17,20 +19,18 @@ export interface AttendanceRecord {
   status: AttendanceStatus;
   session_type: SessionType;
   duration_minutes: number;
-  rpe: number; // 1 to 10
-  session_workload?: number; // Computed property from backend (duration * rpe)
+  rpe: number; // Borg CR10 (1-10)
+  session_workload?: number; // Computed AU (duration * rpe)
   notes?: string;
 }
 
 export interface ACWRMetrics {
-  acuteWorkload: number;   // 7-day rolling average AU
-  chronicWorkload: number; // 28-day rolling average AU
-  acwr: number;            // Acute : Chronic ratio
+  acuteWorkload: number;
+  chronicWorkload: number;
+  acwr: number;
   status: 'UNDERTRAINED' | 'SWEET_SPOT' | 'HIGH_RISK' | 'EXTREME_RISK';
   statusLabel: string;
 }
-
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
 export function useAttendance() {
   const attendanceLogs = ref<AttendanceRecord[]>([]);
@@ -38,22 +38,17 @@ export function useAttendance() {
   const error = ref<string | null>(null);
 
   /**
-   * Fetch attendance logs from Django REST API.
+   * Retrieves attendance records from the backend with optional athlete filtering.
+   *
+   * @param athleteId - Optional target athlete UUID.
    */
-  const fetchAttendance = async (athleteId?: string) => {
+  const fetchAttendance = async (athleteId?: string): Promise<void> => {
     loading.value = true;
     error.value = null;
 
     try {
-      const url = athleteId
-        ? `${API_BASE_URL}/attendance/?athlete=${athleteId}`
-        : `${API_BASE_URL}/attendance/`;
-
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`Error ${res.status}: Failed to fetch attendance data.`);
-
-      const data: AttendanceRecord[] = await res.json();
-      attendanceLogs.value = data;
+      const endpoint = athleteId ? `/attendance/?athlete=${athleteId}` : `/attendance/`;
+      attendanceLogs.value = await apiFetch<AttendanceRecord[]>(endpoint);
     } catch (err: any) {
       error.value = err.message || 'Failed to load attendance logs.';
     } finally {
@@ -62,7 +57,10 @@ export function useAttendance() {
   };
 
   /**
-   * Calculate ACWR and workload stats for a specific athlete over a target date.
+   * Computes client-side ACWR metrics for an athlete over a 28-day historical window.
+   *
+   * @param athleteId - Target athlete UUID.
+   * @param referenceDateStr - Target timeline anchor (YYYY-MM-DD).
    */
   const calculateACWR = (athleteId: string, referenceDateStr?: string): ACWRMetrics => {
     const refDate = referenceDateStr ? new Date(referenceDateStr) : new Date();
@@ -98,7 +96,7 @@ export function useAttendance() {
     const rawAcwr = chronicWorkload > 0 ? acuteWorkload / chronicWorkload : 0;
     const acwr = Number(rawAcwr.toFixed(2));
 
-    // 4. Classify Risk
+    // 4. Classify Risk Zone
     let status: ACWRMetrics['status'] = 'SWEET_SPOT';
     let statusLabel = 'Optimal Load (0.8 - 1.3)';
 

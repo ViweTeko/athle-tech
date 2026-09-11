@@ -1,11 +1,14 @@
 /**
- * frontend/src/components/performance/usePerformance.ts
+ * @fileoverview Domain Composable: Race Performance & ASA Benchmark Deltas.
+ * @module frontend/src/components/performance/usePerformance
+ *
+ * Manages competition performance records, calculates gaps against Athletics South Africa
+ * (ASA) national qualification targets, and provides track/field formatting utilities.
  */
 
 import { ref } from 'vue';
+import { apiFetch } from '../../utils/api';
 import type { RacePerformanceRecord } from './types';
-
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
 export const ASA_SENIOR_STANDARDS_MALE: Record<string, number> = {
   '100m': 10.30,
@@ -18,6 +21,11 @@ export const ASA_SENIOR_STANDARDS_MALE: Record<string, number> = {
   '21.1km': 3780.00, // 1:03:00
 };
 
+/**
+ * Formats a raw mark (seconds) into standard athletics time notation (mm:ss.ms or ss.ms).
+ *
+ * @param rawVal - Numeric seconds or formatted string.
+ */
 export function formatPerformanceValue(rawVal: string | number | undefined): string {
   if (rawVal === undefined || rawVal === null) return '--';
   const val = typeof rawVal === 'string' ? parseFloat(rawVal) : rawVal;
@@ -36,16 +44,17 @@ export function usePerformance() {
   const loading = ref<boolean>(false);
   const error = ref<string | null>(null);
 
-  const fetchPerformances = async (athleteId?: string) => {
+  /**
+   * Fetches race performances from DRF with optional athlete filtering.
+   *
+   * @param athleteId - Optional target athlete UUID.
+   */
+  const fetchPerformances = async (athleteId?: string): Promise<void> => {
     loading.value = true;
     error.value = null;
     try {
-      const url = athleteId
-        ? `${API_BASE_URL}/performances/?athlete=${athleteId}`
-        : `${API_BASE_URL}/performances/`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('Failed to load performance records.');
-      performances.value = await res.json();
+      const endpoint = athleteId ? `/performances/?athlete=${athleteId}` : `/performances/`;
+      performances.value = await apiFetch<RacePerformanceRecord[]>(endpoint);
     } catch (err: any) {
       error.value = err.message || 'Error fetching race performances.';
     } finally {
@@ -53,20 +62,19 @@ export function usePerformance() {
     }
   };
 
-  const createPerformance = async (payload: Partial<RacePerformanceRecord>) => {
+  /**
+   * Submits a newly recorded race mark and stores it in PostgreSQL.
+   *
+   * @param payload - Performance result payload matching DRF serializer schema.
+   */
+  const createPerformance = async (payload: Partial<RacePerformanceRecord>): Promise<RacePerformanceRecord> => {
     loading.value = true;
     error.value = null;
     try {
-      const res = await fetch(`${API_BASE_URL}/performances/`, {
+      const saved = await apiFetch<RacePerformanceRecord>('/performances/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(JSON.stringify(errorData));
-      }
-      const saved: RacePerformanceRecord = await res.json();
       performances.value.unshift(saved);
       return saved;
     } catch (err: any) {

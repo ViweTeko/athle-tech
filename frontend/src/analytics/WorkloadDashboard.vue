@@ -1,11 +1,14 @@
-<!-- frontend/src/components/analytics/WorkloadDashboard.vue -->
+<!--
+  @fileoverview Screen Component: Workload Analytics & ACWR Dashboard.
+  @module frontend/src/analytics/WorkloadDashboard.vue
+
+  Renders the interactive SVG ACWR risk dial, acute/chronic load metric cards,
+  recommendation engine, and the 28-day continuous workload bar distribution.
+-->
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useAnalytics } from './useAnalytics';
-
-onMounted(() => {
-  fetchAthletesList();
-});
+import { apiFetch } from '../utils/api';
 
 interface AthleteOption {
   id: string;
@@ -19,22 +22,23 @@ const { analyticsData, loading, error, fetchAthleteAnalytics } = useAnalytics();
 const athletes = ref<AthleteOption[]>([]);
 const selectedAthleteId = ref<string>('');
 
-const fetchAthletesList = async () => {
+/**
+ * Loads squad roster choices to populate the athlete selector dropdown.
+ */
+const fetchAthletesList = async (): Promise<void> => {
   try {
-    const res = await fetch('http://127.0.0.1:8000/api/athletes/');
-    if (res.ok) {
-      athletes.value = await res.json();
-      if (athletes.value.length > 0) {
-        selectedAthleteId.value = athletes.value[0].id;
-        fetchAthleteAnalytics(selectedAthleteId.value);
-      }
+    const data = await apiFetch<AthleteOption[]>('/athletes/');
+    athletes.value = data;
+    if (athletes.value.length > 0) {
+      selectedAthleteId.value = athletes.value[0].id;
+      await fetchAthleteAnalytics(selectedAthleteId.value);
     }
   } catch (err) {
     console.error('Failed to load athlete list for analytics:', err);
   }
 };
 
-const handleAthleteSelect = () => {
+const handleAthleteSelect = (): void => {
   if (selectedAthleteId.value) {
     fetchAthleteAnalytics(selectedAthleteId.value);
   }
@@ -73,8 +77,12 @@ const statusBadgeClass = computed(() => {
 // Maximum scale calculation for bar heights
 const maxBarWorkload = computed(() => {
   if (!analyticsData.value?.daily_trend?.length) return 1000;
-  const maxVal = Math.max(...analyticsData.value.daily_trend.map(d => d.workload));
+  const maxVal = Math.max(...analyticsData.value.daily_trend.map((d) => d.workload));
   return Math.max(maxVal, 800);
+});
+
+onMounted(() => {
+  fetchAthletesList();
 });
 </script>
 
@@ -128,28 +136,19 @@ const maxBarWorkload = computed(() => {
     <div v-else-if="analyticsData" class="space-y-6">
       <!-- Upper Grid: ACWR Gauge & Workload Metrics -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-        
         <!-- ACWR Gauge Card -->
         <div class="bg-slate-800/70 border border-slate-700/70 rounded-xl p-5 flex flex-col items-center justify-between text-center">
           <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">
             Acute : Chronic Ratio
           </span>
 
-          <!-- Gauge SVG -->
           <div class="relative w-48 h-28 my-2">
             <svg class="w-full h-full" viewBox="0 0 100 55">
-              <!-- Background Arc -->
               <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#334155" stroke-width="10" stroke-linecap="round" />
-              <!-- Under (<0.8) -->
               <path d="M 10 50 A 40 40 0 0 1 30 18" fill="none" stroke="#3b82f6" stroke-width="10" />
-              <!-- Sweet Spot (0.8-1.3) -->
               <path d="M 30 18 A 40 40 0 0 1 70 18" fill="none" stroke="#10b981" stroke-width="10" />
-              <!-- Elevated (1.3-1.5) -->
               <path d="M 70 18 A 40 40 0 0 1 82 30" fill="none" stroke="#f59e0b" stroke-width="10" />
-              <!-- Danger (>1.5) -->
               <path d="M 82 30 A 40 40 0 0 1 90 50" fill="none" stroke="#ef4444" stroke-width="10" />
-
-              <!-- Needle -->
               <line
                 x1="50"
                 y1="50"
@@ -207,7 +206,7 @@ const maxBarWorkload = computed(() => {
             <p class="text-[11px] text-slate-400 mt-2">Rolling 28-day baseline conditioning capacity.</p>
           </div>
 
-          <!-- Insight Box -->
+          <!-- Automated Recommendation -->
           <div class="sm:col-span-2 bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 flex items-start gap-3">
             <span class="text-lg">📋</span>
             <div class="text-xs text-slate-300 leading-relaxed">
@@ -245,14 +244,12 @@ const maxBarWorkload = computed(() => {
           </div>
         </div>
 
-        <!-- Custom SVG / CSS Bar Chart -->
         <div class="relative h-44 w-full flex items-end justify-between gap-1 pt-4 pb-4 border-b border-slate-700">
           <div
             v-for="(day, idx) in analyticsData.daily_trend"
             :key="idx"
             class="group relative flex-1 flex flex-col items-center h-full justify-end"
           >
-            <!-- Hover Tooltip -->
             <div class="absolute bottom-full mb-2 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
               <div class="bg-slate-950 border border-slate-700 text-slate-200 text-[10px] rounded px-2.5 py-1.5 shadow-xl whitespace-nowrap">
                 <div class="font-bold">{{ day.date_label }} ({{ day.status }})</div>
@@ -262,7 +259,6 @@ const maxBarWorkload = computed(() => {
               <div class="w-2 h-2 bg-slate-950 rotate-45 border-r border-b border-slate-700 -mt-1"></div>
             </div>
 
-            <!-- Bar Pillar -->
             <div class="w-full bg-slate-800/60 rounded-t h-full flex items-end">
               <div
                 class="w-full rounded-t transition-all duration-300"
@@ -273,7 +269,6 @@ const maxBarWorkload = computed(() => {
           </div>
         </div>
 
-        <!-- X-Axis Labels -->
         <div class="flex justify-between text-[10px] text-slate-500 mt-2 px-1 font-mono">
           <span>{{ analyticsData.daily_trend[0]?.date_label }}</span>
           <span>Day 14</span>
