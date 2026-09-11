@@ -2,23 +2,42 @@
 backend/core/tests.py
 
 Comprehensive unit test suite for Athle-Tech core endpoints and models.
-Tests REST API operations for Athletes, Attendance Logs (sRPE), and Race Performances.
+Tests REST API operations for Athletes, Attendance Logs (sRPE), and Race Performances
+under JWT authentication constraints.
 """
 
 import uuid
 from datetime import date
 from django.urls import reverse
+from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APITestCase
 from core.models import Athlete, AttendanceLog, RacePerformance
 
+User = get_user_model()
 
-class AthleteTests(APITestCase):
+
+class BaseAuthenticatedTestCase(APITestCase):
+    """
+    Base test fixture providing an authenticated coach user.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            username="testcoach",
+            password="securepassword123",
+            email="coach@athletech.test"
+        )
+        self.client.force_authenticate(user=self.user)
+
+
+class AthleteTests(BaseAuthenticatedTestCase):
     """
     Tests for /api/athletes/ endpoints and Athlete model validation.
     """
 
     def setUp(self):
+        super().setUp()
         self.athlete_payload = {
             "first_name": "Sipho",
             "last_name": "Ndlovu",
@@ -36,6 +55,13 @@ class AthleteTests(APITestCase):
             status="ACTIVE",
         )
 
+    def test_unauthenticated_request_fails(self):
+        """Verify endpoints reject unauthenticated requests with 401."""
+        self.client.force_authenticate(user=None)
+        url = reverse("athlete-list")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
     def test_create_athlete_success(self):
         """Verify creating a new athlete via POST /api/athletes/"""
         url = reverse("athlete-list")
@@ -45,7 +71,6 @@ class AthleteTests(APITestCase):
         self.assertEqual(response.data["first_name"], "Sipho")
         self.assertEqual(response.data["last_name"], "Ndlovu")
         self.assertEqual(response.data["primary_event"], "SPRINTS")
-        # Ensure UUID was assigned
         self.assertTrue(uuid.UUID(response.data["id"]))
 
     def test_create_athlete_expanded_events(self):
@@ -90,12 +115,13 @@ class AthleteTests(APITestCase):
         self.assertEqual(response.data[0]["status"], "INJURED")
 
 
-class AttendanceLogTests(APITestCase):
+class AttendanceLogTests(BaseAuthenticatedTestCase):
     """
     Tests for /api/attendance/ endpoints and sRPE workload calculations.
     """
 
     def setUp(self):
+        super().setUp()
         self.athlete = Athlete.objects.create(
             first_name="Themba",
             last_name="Khumalo",
@@ -121,7 +147,6 @@ class AttendanceLogTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["duration_minutes"], 75)
         self.assertEqual(response.data["rpe"], 8)
-        # sRPE Workload: 75 mins * 8 RPE = 600 AU
         self.assertEqual(response.data["session_workload"], 600)
 
     def test_absent_athlete_zero_workload(self):
@@ -161,7 +186,6 @@ class AttendanceLogTests(APITestCase):
             "rpe": 7,
         }
         response = self.client.post(url, duplicate_payload, format="json")
-
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_rpe_validator_bounds(self):
@@ -173,18 +197,19 @@ class AttendanceLogTests(APITestCase):
             "status": "PRESENT",
             "session_type": "TRACK",
             "duration_minutes": 60,
-            "rpe": 15,  # Exceeds MaxValueValidator(10)
+            "rpe": 15,
         }
         response = self.client.post(url, invalid_payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class RacePerformanceTests(APITestCase):
+class RacePerformanceTests(BaseAuthenticatedTestCase):
     """
-    Tests for /api/performance/ endpoints and ASA benchmark deltas.
+    Tests for /api/performances/ endpoints and ASA benchmark deltas.
     """
 
     def setUp(self):
+        super().setUp()
         self.athlete = Athlete.objects.create(
             first_name="Zola",
             last_name="Budd",
@@ -195,21 +220,20 @@ class RacePerformanceTests(APITestCase):
         )
 
     def test_log_race_performance_and_compute_delta(self):
-        """Verify POST /api/performance/ computes delta_seconds against ASA standard"""
+        """Verify POST /api/performances/ computes delta_seconds against ASA standard"""
         url = reverse("performance-list")
         payload = {
             "athlete": str(self.athlete.id),
             "event_name": "1500m",
             "date": "2026-08-20",
-            "recorded_time_seconds": "252.50",  # 4:12.50
-            "asa_standard_seconds": "250.00",   # 4:10.00 target
+            "recorded_time_seconds": "252.50",
+            "asa_standard_seconds": "250.00",
         }
         response = self.client.post(url, payload, format="json")
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(float(response.data["recorded_time_seconds"]), 252.50)
         self.assertEqual(float(response.data["asa_standard_seconds"]), 250.00)
-        # Delta = 252.50 - 250.00 = +2.50s gap
         self.assertEqual(response.data["delta_seconds"], 2.50)
 
     def test_filter_performance_by_event(self):
