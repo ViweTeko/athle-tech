@@ -1,84 +1,56 @@
 <!--
-  frontend/src/App.vue
-
-  Root application shell for Athle-Tech.
-  Provides persistent top navigation, toast notifications, and dynamic
-  client-side page rendering via Vue Router.
+  @fileoverview Root application shell with top navigation and view routing.
+  @module frontend/src/App.vue
 -->
 <script setup lang="ts">
 import { ref } from 'vue';
-import { RouterLink, RouterView } from 'vue-router';
+import { RouterLink, RouterView, useRouter } from 'vue-router';
 import { Athlete } from './components/athletes/types';
 import { useAuth } from './auth/useAuth';
 
-
+const router = useRouter();
 const { isAuthenticated, logout } = useAuth();
 const notification = ref<string | null>(null);
 
 function handleLogWorkload(athlete: Athlete) {
-  notification.value = `Navigating to Workload Logger for ${athlete.first_name} ${athlete.last_name}`;
-  setTimeout(() => { notification.value = null; }, 4000);
+  notification.value = `Opening logger for ${athlete.first_name} ${athlete.last_name}...`;
+  setTimeout(() => {
+    notification.value = null;
+  }, 2500);
+  router.push(`/attendance?athlete=${athlete.id}`);
 }
 </script>
 
 <template>
-  <div class="app-layout min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
-    <!-- Top Navigation Header -->
-    <header class="bg-slate-950 border-b border-slate-800 shadow-md sticky top-0 z-50">
-      <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+  <div class="min-h-screen bg-canvas text-slate-100 flex flex-col font-sans">
+    <header class="bg-surface/90 backdrop-blur-md border-b border-slate-800 sticky top-0 z-50 shadow-lg">
+      <div class="max-w-7xl mx-auto px-6 py-3.5 flex items-center justify-between">
         <div class="flex items-center space-x-3">
-          <span class="text-xl font-bold tracking-tight text-emerald-400">Athle-Tech</span>
+          <span class="text-xl font-black tracking-tight text-emerald-400">⚡ Athle-Tech</span>
         </div>
-        <nav class="flex space-x-6 text-sm font-semibold">
-          <RouterLink 
-            to="/" 
-            class="text-slate-300 hover:text-emerald-400 transition-colors py-1"
-            active-class="text-emerald-400 border-b-2 border-emerald-400"
-          >
+        <nav class="flex items-center space-x-6 text-xs font-semibold uppercase tracking-wider">
+          <RouterLink to="/" class="text-slate-300 hover:text-emerald-400 transition-colors py-1" active-class="text-emerald-400 border-b-2 border-emerald-400">Dashboard</RouterLink>
+          <RouterLink to="/athletes" class="text-slate-300 hover:text-emerald-400 transition-colors py-1" active-class="text-emerald-400 border-b-2 border-emerald-400">Athletes</RouterLink>
+          <RouterLink to="/attendance" class="text-slate-300 hover:text-emerald-400 transition-colors py-1" active-class="text-emerald-400 border-b-2 border-emerald-400">Attendance</RouterLink>
+          <RouterLink to="/performance" class="text-slate-300 hover:text-emerald-400 transition-colors py-1" active-class="text-emerald-400 border-b-2 border-emerald-400">Performance</RouterLink>
           <button
-              v-if="isAuthenticated"
-              @click="logout"
-              class="text-xs text-rose-400 hover:text-rose-300 font-semibold px-2 py-1 rounded border border-rose-950 hover:border-rose-800 transition-colors"
+            v-if="isAuthenticated"
+            @click="logout"
+            class="text-xs text-rose-400 hover:text-rose-300 px-2.5 py-1 rounded border border-rose-900/60 hover:border-rose-700 transition"
           >
-              Logout
+            Logout
           </button>
-            Dashboard
-          </RouterLink>
-          <RouterLink 
-            to="/athletes" 
-            class="text-slate-300 hover:text-emerald-400 transition-colors py-1"
-            active-class="text-emerald-400 border-b-2 border-emerald-400"
-          >
-            Athletes
-          </RouterLink>
-          <RouterLink 
-            to="/attendance" 
-            class="text-slate-300 hover:text-emerald-400 transition-colors py-1"
-            active-class="text-emerald-400 border-b-2 border-emerald-400"
-          >
-            Attendance
-          </RouterLink>
-          <RouterLink 
-            to="/performance" 
-            class="text-slate-300 hover:text-emerald-400 transition-colors py-1"
-            active-class="text-emerald-400 border-b-2 border-emerald-400"
-          >
-            Performance
-          </RouterLink>
         </nav>
       </div>
     </header>
 
-    <!-- Toast Notification Banner -->
     <transition name="toast">
-      <div v-if="notification" class="toast-banner" role="alert">
-        <span class="toast-icon">⚡</span>
-        <span class="toast-message">{{ notification }}</span>
+      <div v-if="notification" class="fixed top-16 right-6 z-50 bg-indigo-600 border border-indigo-400 text-white px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold">
+        {{ notification }}
       </div>
     </transition>
 
-    <!-- Main View Outlet -->
-    <main class="app-shell flex-grow max-w-7xl w-full mx-auto p-6">
+    <main class="flex-grow max-w-7xl w-full mx-auto p-6">
       <RouterView @log-workload="handleLogWorkload" />
     </main>
   </div>

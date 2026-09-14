@@ -8,6 +8,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { apiFetch } from '../../utils/api';
+import { useRoute } from 'vue-router';
 
 interface AthleteOption {
   id: string;
@@ -30,6 +31,7 @@ interface LogFormState {
 }
 
 const API_BASE_URL = 'http://127.0.0.1:8000/api';
+const route = useRoute();
 
 // Reactive State
 const athletes = ref<AthleteOption[]>([]);
@@ -63,11 +65,14 @@ const fetchAthletes = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const res = await fetch(`${API_BASE_URL}/athletes/`);
-    if (!res.ok) throw new Error('Failed to fetch athletes');
-    const data = await res.json();
+    const data = await apiFetch<AthleteOption[]>('/athletes/');
     athletes.value = data.filter((a: AthleteOption) => a.status !== 'INACTIVE');
-    if (athletes.value.length > 0) {
+    
+    // Select the query param athlete if provided, else the first in the list
+    const queryAthleteId = route.query.athlete as string;
+    if (queryAthleteId && athletes.value.some(a => a.id === queryAthleteId)) {
+      form.value.athlete = queryAthleteId;
+    } else if (athletes.value.length > 0) {
       form.value.athlete = athletes.value[0].id;
     }
   } catch (err: any) {
@@ -100,18 +105,10 @@ const handleSubmitLog = async () => {
   };
 
   try {
-    const res = await fetch(`${API_BASE_URL}/attendance/`, {
+    await apiFetch('/attendance/', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
       body: JSON.stringify(payload),
     });
-
-    if (!res.ok) {
-      const errData = await res.json();
-      throw new Error(JSON.stringify(errData));
-    }
 
     successMessage.value = `Logged ${calculatedWorkload.value} AU workload successfully.`;
     form.value.rpe = 5;

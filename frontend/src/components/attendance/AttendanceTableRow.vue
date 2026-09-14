@@ -1,94 +1,86 @@
 <!--
-  frontend/src/components/attendance/AttendanceTableRow.vue
-
-  Renders a table row for a single athlete's attendance log entry,
-  allowing the user to edit status, duration, and RPE per session.
-  Displays the ACWR badge computed from acute and chronic workload values.
+  @fileoverview Table row component for session attendance and sRPE logging.
+  @module frontend/src/components/attendance/AttendanceTableRow.vue
 -->
 <script setup lang="ts">
-import type { AttendanceRecord } from './useAttendance'
+import type { AttendanceRecord } from './useAttendance';
 
 const props = defineProps<{
-  entry: AttendanceRecord
-  calculateACWR: (acute: number, chronic: number) => number
-  getACWRBadgeClass: (acwr: number) => string
-}>()
+  entry: AttendanceRecord;
+  calculateACWR: (acute: number, chronic: number) => number;
+  getACWRBadgeClass: (acwr: number) => string;
+}>();
 
-/** Per-entry acute workload (sRPE) used for badge calculation. */
-const acuteLoad = () => props.entry.session_workload ?? props.entry.duration_minutes * props.entry.rpe
+const acuteLoad = () => props.entry.session_workload ?? props.entry.duration_minutes * props.entry.rpe;
 
 function setStatus(status: AttendanceRecord['status']) {
-  props.entry.status = status
+  props.entry.status = status;
   if (status !== 'PRESENT') {
-    props.entry.rpe = 1
-    props.entry.duration_minutes = 0
+    props.entry.rpe = 1;
+    props.entry.duration_minutes = 0;
   }
 }
 </script>
 
 <template>
-  <tr class="hover:bg-gray-50/50 transition border-b border-gray-100">
-    <!-- Athlete Details -->
+  <tr class="hover:bg-slate-800/40 transition-colors border-b border-slate-800/80">
     <td class="py-4 px-4">
-      <p class="font-semibold text-gray-900">{{ entry.athlete }}</p>
-      <p class="text-xs text-gray-500">{{ entry.session_type }}</p>
+      <p class="font-semibold text-slate-100">{{ entry.athlete }}</p>
+      <p class="text-xs text-slate-400">{{ entry.session_type }}</p>
     </td>
 
-    <!-- Status Buttons -->
     <td class="py-4 px-4">
-      <div class="inline-flex rounded-md shadow-sm" role="group">
+      <div class="inline-flex rounded-lg shadow-sm border border-slate-700 bg-slate-900 overflow-hidden" role="group">
         <button
           type="button"
           @click="setStatus('PRESENT')"
-          :class="entry.status === 'PRESENT' ? 'bg-green-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'"
-          class="px-2.5 py-1 text-xs font-medium border rounded-l-lg transition"
+          :class="entry.status === 'PRESENT' ? 'bg-emerald-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
+          class="px-2.5 py-1.5 text-xs font-medium transition"
         >
           Present
         </button>
         <button
           type="button"
           @click="setStatus('ABSENT')"
-          :class="entry.status === 'ABSENT' ? 'bg-gray-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'"
-          class="px-2.5 py-1 text-xs font-medium border-t border-b transition"
+          :class="entry.status === 'ABSENT' ? 'bg-slate-700 text-white font-bold' : 'text-slate-400 hover:text-white'"
+          class="px-2.5 py-1.5 text-xs font-medium border-x border-slate-700 transition"
         >
           Absent
         </button>
         <button
           type="button"
           @click="setStatus('EXCUSED')"
-          :class="entry.status === 'EXCUSED' ? 'bg-amber-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'"
-          class="px-2.5 py-1 text-xs font-medium border rounded-r-lg transition"
+          :class="entry.status === 'EXCUSED' ? 'bg-amber-600 text-white font-bold' : 'text-slate-400 hover:text-white'"
+          class="px-2.5 py-1.5 text-xs font-medium transition"
         >
           Excused
         </button>
       </div>
     </td>
 
-    <!-- Duration Input -->
     <td class="py-4 px-4">
-      <div class="flex items-center gap-1">
+      <div class="flex items-center gap-1.5">
         <input
           v-model.number="entry.duration_minutes"
           :disabled="entry.status !== 'PRESENT'"
           type="number"
-          class="w-16 px-2 py-1 border rounded text-sm disabled:bg-gray-100 disabled:text-gray-400"
+          class="w-16 px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-slate-100 font-mono disabled:opacity-40"
         />
-        <span class="text-xs text-gray-500">min</span>
+        <span class="text-xs text-slate-400 font-mono">min</span>
       </div>
     </td>
 
-    <!-- RPE Scale Chips -->
     <td class="py-4 px-4">
-      <div class="flex gap-1" :class="{ 'opacity-40 pointer-events-none': entry.status !== 'PRESENT' }">
+      <div class="flex gap-1" :class="{ 'opacity-30 pointer-events-none': entry.status !== 'PRESENT' }">
         <button
           v-for="rpeVal in 10"
           :key="rpeVal"
           @click="entry.rpe = rpeVal"
           :class="[
             entry.rpe === rpeVal
-              ? 'bg-blue-600 text-white font-bold ring-2 ring-blue-300'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-            'w-7 h-7 rounded text-xs transition flex items-center justify-center'
+              ? 'bg-emerald-600 text-white font-bold ring-2 ring-emerald-400'
+              : 'bg-slate-900 text-slate-400 hover:bg-slate-800 border border-slate-700/60',
+            'w-7 h-7 rounded text-xs transition flex items-center justify-center font-mono'
           ]"
         >
           {{ rpeVal }}
@@ -96,20 +88,13 @@ function setStatus(status: AttendanceRecord['status']) {
       </div>
     </td>
 
-    <!-- ACWR Badge -->
     <td class="py-4 px-4 text-center">
       <div class="inline-flex flex-col items-center">
         <span
           :class="getACWRBadgeClass(calculateACWR(acuteLoad(), acuteLoad()))"
-          class="px-2.5 py-1 rounded-full text-xs font-bold border"
+          class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border"
         >
           {{ calculateACWR(acuteLoad(), acuteLoad()) }}
-        </span>
-        <span
-          v-if="calculateACWR(acuteLoad(), acuteLoad()) > 1.5"
-          class="text-[10px] font-bold text-red-600 mt-1 uppercase tracking-tight"
-        >
-          High Injury Risk
         </span>
       </div>
     </td>
