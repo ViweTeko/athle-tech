@@ -9,6 +9,7 @@ from .views import (
     AttendanceLogViewSet,
     RacePerformanceViewSet,
     AthleteWorkloadAnalyticsView,
+    AthleteWorkloadExportCSVView,
 )
 
 router = DefaultRouter()
@@ -23,5 +24,10 @@ urlpatterns = [
         'analytics/workload/<uuid:athlete_id>/',
         AthleteWorkloadAnalyticsView.as_view(),
         name='athlete-workload-analytics',
+    ),
+    path(
+        'analytics/workload-csv/<uuid:athlete_id>/',
+        AthleteWorkloadExportCSVView.as_view(),
+        name='athlete-workload-csv',
     ),
 ]
