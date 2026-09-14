@@ -8,7 +8,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useAnalytics } from './useAnalytics';
-import { apiFetch } from '../utils/api';
+import { apiFetch, apiDownload } from '../utils/api';
 
 interface AthleteOption {
   id: string;
@@ -79,6 +79,23 @@ const maxBarWorkload = computed(() => {
 onMounted(() => {
   fetchAthletesList();
 });
+
+const exporting = ref<boolean>(false);
+
+const handleExportCSV = async (): Promise<void> => {
+  if (!selectedAthleteId.value) return;
+
+  exporting.value = true;
+  try {
+    const selectedAthlete = athletes.value.find(a => a.id === selectedAthleteId.value);
+    const fallbackName = `workload_${selectedAthlete?.last_name.toLowerCase() || 'report'}.csv`;
+    await apiDownload(`/analytics/workload/${selectedAthleteId.value}/export/`, fallbackName);
+  } catch (err) {
+    console.error('Failed to export CSV workload report:', err);
+  } finally {
+    exporting.value = false;
+  }
+};
 </script>
 
 <template>
@@ -113,6 +130,16 @@ onMounted(() => {
         </button>
       </div>
     </header>
+
+        <!-- CSV Export Button -->
+        <button
+          @click="handleExportCSV"
+          :disabled="exporting || !selectedAthleteId"
+          class="bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-slate-100 font-semibold px-3 py-2 rounded-lg text-xs transition-colors flex items-center gap-1.5 shadow-sm border border-slate-600"
+        >
+          <span>📥</span>
+          {{ exporting ? 'Exporting...' : 'Export CSV' }}
+        </button>
 
     <!-- Error State -->
     <div v-if="error" class="bg-rose-950/80 border border-rose-800 text-rose-300 text-xs p-4 rounded-xl">

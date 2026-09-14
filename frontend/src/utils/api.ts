@@ -83,3 +83,59 @@ export async function apiFetch<T = any>(endpoint: string, options: RequestOption
 
     return response.json();
 }
+
+/**
+ * Triggers an authenticated file stream download with JWT authorization.
+ *
+ * @param endpoint - Target API endpoint.
+ * @param defaultFilename - Suggested fallback filename.
+ */
+export async function apiDownload(endpoint: string, defaultFilename: string = 'export.csv'): Promise<void> {
+    const { getAuthHeaders, refreshAccessToken, logout } = useAuth();
+    const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+
+    let response = await fetch(url, {
+        method: 'GET',
+        headers: {
+            ...getAuthHeaders(),
+        },
+    });
+
+    if (response.status === 401) {
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+            response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    Authorization: `Bearer ${newToken}`,
+                },
+            });
+        } else {
+            logout();
+            throw new Error('Session expired. Please log in again.');
+        }
+    }
+
+    if (!response.ok) {
+        throw new Error(`Download failed with status ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = downloadUrl;
+
+    // Read filename from content-disposition header if present
+    const disposition = response.headers.get('content-disposition');
+    let filename = defaultFilename;
+    if (disposition && disposition.includes('filename=')) {
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match && match[1]) filename = match[1];
+    }
+
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    window.URL.revokeObjectURL(downloadUrl);
+}
