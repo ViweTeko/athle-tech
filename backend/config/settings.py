@@ -20,7 +20,7 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-load_dotenv(BASE_DIR / '.env')
+load_dotenv(BASE_DIR / '.env', override=False)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
@@ -29,7 +29,7 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'default-fallback-secret-key')
 
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 't')
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost 127.0.0.1 backend').split()
 
 
 # Application definition
@@ -83,11 +83,11 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'athletech_db'),
-        'USER': os.getenv('DB_USER', 'postgres'),
-        'PASSWORD': os.getenv('DB_PASSWORD', ''),
-        'HOST': os.getenv('DB_HOST', '127.0.0.1'),
-        'PORT': os.getenv('DB_PORT', '5432'),
+        'NAME': os.environ.get('DATABASE_NAME') or os.environ.get('DB_NAME', 'athletech'),
+        'USER': os.environ.get('DATABASE_USER') or os.environ.get('DB_USER', 'athletech_user'),
+        'PASSWORD': os.environ.get('DATABASE_PASSWORD') or os.environ.get('DB_PASSWORD', 'athletech_secure_pass'),
+        'HOST': os.environ.get('DATABASE_HOST', os.environ.get('DB_HOST', 'db')),
+        'PORT': os.environ.get('DATABASE_PORT', os.environ.get('DB_PORT', '5432')),
     }
 }
 
@@ -133,7 +133,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
-
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration

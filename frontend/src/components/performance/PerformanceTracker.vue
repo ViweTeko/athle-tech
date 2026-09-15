@@ -5,7 +5,6 @@ import { usePerformance } from './usePerformance';
 import PerformanceCard from './PerformanceCard.vue';
 import ResultEntryForm from './ResultEntryForm.vue';
 import { apiFetch } from '../../utils/api';
-import type { TrackAndFieldEvent } from './types';
 
 const { performances, loading, error, fetchPerformances, createPerformance } = usePerformance();
 
