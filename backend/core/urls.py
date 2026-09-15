@@ -10,6 +10,8 @@ from .views import (
     RacePerformanceViewSet,
     AthleteWorkloadAnalyticsView,
     AthleteWorkloadExportCSVView,
+    ASAGapAnalysisReportView,
+    ASAGapExportCSVView,
 )
 
 router = DefaultRouter()
@@ -29,5 +31,15 @@ urlpatterns = [
         'analytics/workload-csv/<uuid:athlete_id>/',
         AthleteWorkloadExportCSVView.as_view(),
         name='athlete-workload-csv',
+    ),
+    path(
+        'analytics/asa-gaps/',
+        ASAGapAnalysisReportView.as_view(),
+        name='asa-gaps-report',
+    ),
+    path(
+        'analytics/asa-gaps-csv/',
+        ASAGapExportCSVView.as_view(),
+        name='asa-gaps-csv',
     ),
 ]

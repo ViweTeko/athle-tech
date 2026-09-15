@@ -23,6 +23,7 @@ from .serializers import (
     AttendanceLogSerializer,
     RacePerformanceSerializer,
 )
+from .services.asa_standards import ASAGapEngine, ASA_STANDARDS
 
 
 class AthleteViewSet(viewsets.ModelViewSet):
@@ -311,5 +312,131 @@ class AthleteWorkloadExportCSVView(APIView):
 
         for row in daily_rows:
             writer.writerow(row)
+
+        return response
+
+class ASAGapAnalysisReportView(APIView):
+    """
+    Returns full squad or athlete-specific gap analysis against ASA National Standards.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        category = request.query_params.get('category', 'Senior')
+        athletes = Athlete.objects.all().prefetch_related('race_performances')
+
+        report_data = []
+
+        for athlete in athletes:
+            # Query best performance for primary event
+            performances = athlete.race_performances.filter(event=athlete.primary_event)
+            if not performances.exists():
+                continue
+
+            is_track = athlete.primary_event in ASAGapEngine.TRACK_EVENTS
+            best_perf = performances.order_by('result_numeric').first() if is_track else performances.order_by('-result_numeric').first()
+
+            if not best_perf:
+                continue
+
+            analysis = ASAGapEngine.evaluate(
+                event=athlete.primary_event,
+                gender=athlete.gender,
+                category=category,
+                athlete_best=best_perf.result_numeric
+            )
+
+            if analysis:
+                report_data.append({
+                    "athlete_id": str(athlete.id),
+                    "athlete_name": f"{athlete.first_name} {athlete.last_name}",
+                    "gender": athlete.gender,
+                    "event": athlete.primary_event,
+                    "category": category,
+                    "standard": analysis.standard_value,
+                    "athlete_best": analysis.athlete_best,
+                    "gap": analysis.gap_value,
+                    "percentage_gap": analysis.percentage_gap,
+                    "is_qualified": analysis.is_qualified,
+                    "status": analysis.status_label,
+                    "unit": analysis.unit
+                })
+
+        return Response(report_data)
+
+
+class ASAGapExportCSVView(APIView):
+    """
+    Streams a CSV file containing ASA qualifying gap diagnostics for coach distribution.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        category = request.query_params.get('category', 'Senior')
+        athletes = Athlete.objects.all().prefetch_related('race_performances')
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="asa_qualification_gap_{category.lower()}.csv"'
+
+        writer = csv.writer(response)
+
+        # Header Metadata
+        writer.writerow(["ATHLE-TECH - ASA QUALIFICATION GAP REPORT"])
+        writer.writerow(["Target Division / Category", category])
+        writer.writerow(["Governing Standards", "Athletics South Africa National Standards"])
+        writer.writerow([])
+
+        # Table Columns
+        writer.writerow([
+            "Athlete Name",
+            "Gender",
+            "Event",
+            "Personal Best",
+            "ASA Standard",
+            "Delta Margin",
+            "Gap %",
+            "Status",
+            "Qualified"
+        ])
+
+        for athlete in athletes:
+            performances = athlete.race_performances.filter(event=athlete.primary_event)
+            if not performances.exists():
+                continue
+
+            is_track = athlete.primary_event in ASAGapEngine.TRACK_EVENTS
+            best_perf = performances.order_by('result_numeric').first() if is_track else performances.order_by('-result_numeric').first()
+
+            if not best_perf:
+                continue
+
+            analysis = ASAGapEngine.evaluate(
+                event=athlete.primary_event,
+                gender=athlete.gender,
+                category=category,
+                athlete_best=best_perf.result_numeric
+            )
+
+            if analysis:
+                if analysis.unit == 's':
+                    pb_str = ASAGapEngine.format_time(analysis.athlete_best)
+                    std_str = ASAGapEngine.format_time(analysis.standard_value)
+                    gap_str = f"{'+' if analysis.gap_value > 0 else ''}{analysis.gap_value:.2f}s"
+                else:
+                    pb_str = f"{analysis.athlete_best:.2f}m"
+                    std_str = f"{analysis.standard_value:.2f}m"
+                    gap_str = f"{'-' if analysis.gap_value > 0 else '+'}{abs(analysis.gap_value):.2f}m"
+
+                writer.writerow([
+                    f"{athlete.first_name} {athlete.last_name}",
+                    athlete.gender,
+                    athlete.primary_event,
+                    pb_str,
+                    std_str,
+                    gap_str,
+                    f"{analysis.percentage_gap:+0.2f}%",
+                    analysis.status_label,
+                    "YES" if analysis.is_qualified else "NO"
+                ])
 
         return response
