@@ -113,7 +113,12 @@ const handleSubmitLog = async () => {
     successMessage.value = `Logged ${calculatedWorkload.value} AU workload successfully.`;
     form.value.rpe = 5;
   } catch (err: any) {
-    error.value = err.message || 'Failed to submit attendance log.';
+    const rawMsg = err.message || '';
+    if (rawMsg.includes('unique set') || rawMsg.includes('already exists')) {
+      error.value = 'An attendance log for this athlete already exists on this date. Select a different date or athlete.';
+    } else {
+      error.value = rawMsg || 'Failed to submit attendance log.';
+    }
   } finally {
     submitting.value = false;
   }

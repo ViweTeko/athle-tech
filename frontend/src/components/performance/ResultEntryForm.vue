@@ -1,6 +1,6 @@
 <!-- frontend/src/components/performance/ResultEntryForm.vue -->
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { ASA_SENIOR_STANDARDS_MALE } from './usePerformance';
 
 const props = defineProps<{
@@ -19,6 +19,16 @@ const selectedEvent = ref<string>('100m');
 const rawResult = ref<string>('');
 const compDate = ref<string>(new Date().toISOString().split('T')[0]);
 const formError = ref<string | null>(null);
+
+watch(
+  () => props.athletes,
+  (newList) => {
+    if (!selectedAthlete.value && newList.length > 0) {
+      selectedAthlete.value = newList[0].id;
+    }
+  },
+  { immediate: true }
+);
 
 const parseResultValue = (input: string): number | null => {
   const trimmed = input.trim();

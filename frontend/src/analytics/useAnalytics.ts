@@ -24,7 +24,7 @@ export interface ACWRMetrics {
     acute_workload: number;
     chronic_workload: number;
     acwr: number;
-    status: 'UNDERTRAINED' | 'SWEET_SPOT' | 'HIGH_RISK' | 'EXTREME_RISK';
+    status: 'BUILDING_BASE' | 'UNDERTRAINED' | 'SWEET_SPOT' | 'HIGH_RISK' | 'EXTREME_RISK';
     status_label: string;
 }
 

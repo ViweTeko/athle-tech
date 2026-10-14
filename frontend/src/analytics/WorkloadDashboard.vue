@@ -109,8 +109,8 @@ const handleExportCSV = async (): Promise<void> => {
         <p class="text-xs text-slate-400 mt-0.5">Continuous 28-day training load telemetry and injury risk evaluation.</p>
       </div>
 
-      <!-- Athlete Selection Dropdown -->
-      <div class="flex items-center gap-3">
+      <!-- Athlete Selection Dropdown & Actions -->
+      <div class="flex flex-wrap items-center gap-3">
         <label class="text-xs font-semibold text-slate-300">Athlete:</label>
         <select
           v-model="selectedAthleteId"
@@ -128,10 +128,6 @@ const handleExportCSV = async (): Promise<void> => {
         >
           {{ loading ? '...' : 'Refresh' }}
         </button>
-      </div>
-    </header>
-
-        <!-- CSV Export Button -->
         <button
           @click="handleExportCSV"
           :disabled="exporting || !selectedAthleteId"
@@ -140,6 +136,8 @@ const handleExportCSV = async (): Promise<void> => {
           <span>📥</span>
           {{ exporting ? 'Exporting...' : 'Export CSV' }}
         </button>
+      </div>
+    </header>
 
     <!-- Error State -->
     <div v-if="error" class="bg-rose-950/80 border border-rose-800 text-rose-300 text-xs p-4 rounded-xl">
