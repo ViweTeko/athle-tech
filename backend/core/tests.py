@@ -165,8 +165,8 @@ class AttendanceLogTests(BaseAuthenticatedTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["session_workload"], 0)
 
-    def test_duplicate_attendance_same_day_fails(self):
-        """Verify unique_together constraint prevents duplicate logs per athlete per day"""
+    def test_duplicate_attendance_same_day_updates_existing(self):
+        """Verify posting on the same day updates the existing log (upsert)"""
         AttendanceLog.objects.create(
             athlete=self.athlete,
             date=date(2026, 8, 27),
@@ -186,7 +186,9 @@ class AttendanceLogTests(BaseAuthenticatedTestCase):
             "rpe": 7,
         }
         response = self.client.post(url, duplicate_payload, format="json")
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(AttendanceLog.objects.filter(athlete=self.athlete, date=date(2026, 8, 27)).count(), 1)
+        self.assertEqual(response.data["session_workload"], 315)
 
     def test_rpe_validator_bounds(self):
         """Verify RPE must be within 1-10 range"""

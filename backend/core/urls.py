@@ -1,7 +1,6 @@
 """
 backend/core/urls.py
 """
-
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
@@ -20,7 +19,6 @@ router.register(r'attendance', AttendanceLogViewSet, basename='attendance')
 router.register(r'performances', RacePerformanceViewSet, basename='performance')
 
 urlpatterns = [
-    # Router already mounted under 'api/' in config/urls.py
     path('', include(router.urls)),
     path(
         'analytics/workload/<uuid:athlete_id>/',
@@ -28,18 +26,23 @@ urlpatterns = [
         name='athlete-workload-analytics',
     ),
     path(
+        'analytics/workload/<uuid:athlete_id>/export/',
+        AthleteWorkloadExportCSVView.as_view(),
+        name='athlete-workload-export',
+    ),
+    path(
         'analytics/workload-csv/<uuid:athlete_id>/',
         AthleteWorkloadExportCSVView.as_view(),
         name='athlete-workload-csv',
     ),
     path(
-        'analytics/asa-gaps/',
+        'analytics/asa-gap/',
         ASAGapAnalysisReportView.as_view(),
-        name='asa-gaps-report',
+        name='asa-gap-report',
     ),
     path(
-        'analytics/asa-gaps-csv/',
+        'analytics/asa-gap/export/',
         ASAGapExportCSVView.as_view(),
-        name='asa-gaps-csv',
+        name='asa-gap-export',
     ),
 ]

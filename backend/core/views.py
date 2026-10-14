@@ -1,9 +1,5 @@
 """
 backend/core/views.py
-
-Defines Django REST Framework (DRF) ViewSets for the Athle-Tech application.
-Exposes RESTful CRUD endpoints for Athlete roster management, Attendance logging,
-and Race Performance tracking.
 """
 from datetime import date, timedelta
 from django.shortcuts import get_object_or_404
@@ -13,7 +9,6 @@ import csv
 from rest_framework import viewsets, filters, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 
 from .models import Athlete, AttendanceLog, RacePerformance
@@ -23,38 +18,27 @@ from .serializers import (
     AttendanceLogSerializer,
     RacePerformanceSerializer,
 )
-from .services.asa_standards import ASAGapEngine, ASA_STANDARDS
+from .services.asa_standards import ASAGapEngine
 
 
 class AthleteViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint that allows athletes to be viewed, created, updated, or deleted.
-    Supports filtering by status and primary event.
-    """
     queryset = Athlete.objects.all()
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['first_name', 'last_name']
     ordering_fields = ['last_name', 'first_name', 'created_at']
 
     def get_serializer_class(self):
-        """
-        Use AthleteDetailSerializer for retrieve actions (single athlete view)
-        to include nested attendance and race logs.
-        """
         if self.action == 'retrieve':
             return AthleteDetailSerializer
         return AthleteSerializer
 
     def get_queryset(self):
-        """
-        Optionally filter athletes by status or primary_event query parameters.
-        """
         queryset = Athlete.objects.all()
-        status = self.request.query_params.get('status')
+        status_param = self.request.query_params.get('status')
         primary_event = self.request.query_params.get('primary_event')
 
-        if status:
-            queryset = queryset.filter(status=status)
+        if status_param:
+            queryset = queryset.filter(status=status_param)
         if primary_event:
             queryset = queryset.filter(primary_event=primary_event)
 
@@ -62,43 +46,31 @@ class AthleteViewSet(viewsets.ModelViewSet):
 
 
 class AttendanceLogViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for logging daily training sessions, durations, and RPE.
-    """
     queryset = AttendanceLog.objects.all()
     serializer_class = AttendanceLogSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['date']
 
     def get_queryset(self):
-        """
-        Optionally filter attendance logs by athlete ID or specific date range.
-        """
         queryset = AttendanceLog.objects.select_related('athlete').all()
         athlete_id = self.request.query_params.get('athlete')
-        date = self.request.query_params.get('date')
+        date_param = self.request.query_params.get('date')
 
         if athlete_id:
             queryset = queryset.filter(athlete_id=athlete_id)
-        if date:
-            queryset = queryset.filter(date=date)
+        if date_param:
+            queryset = queryset.filter(date=date_param)
 
         return queryset
 
 
 class RacePerformanceViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint for tracking race results and ASA standard benchmarking.
-    """
     queryset = RacePerformance.objects.all()
     serializer_class = RacePerformanceSerializer
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['date', 'event_name']
 
     def get_queryset(self):
-        """
-        Optionally filter performance records by athlete or event category.
-        """
         queryset = RacePerformance.objects.select_related('athlete').all()
         athlete_id = self.request.query_params.get('athlete')
         event_name = self.request.query_params.get('event_name')
@@ -110,11 +82,31 @@ class RacePerformanceViewSet(viewsets.ModelViewSet):
 
         return queryset
 
+
+def compute_acwr_status(acute_workload: float, chronic_workload: float, history_span_days: int):
+    """
+    Guards ACWR calculation against Cold-Start (< 14 days history) and zero chronic load.
+    """
+    if chronic_workload <= 0:
+        return 0.0, "BUILDING_BASE", "No Recent Data (0.0)"
+
+    if history_span_days < 14:
+        acwr = round(acute_workload / chronic_workload, 2)
+        return acwr, "BUILDING_BASE", f"Building Base ({history_span_days}d logged)"
+
+    acwr = round(acute_workload / chronic_workload, 2)
+    if acwr < 0.8:
+        return acwr, "UNDERTRAINED", "Under-trained (< 0.8)"
+    elif 0.8 <= acwr <= 1.3:
+        return acwr, "SWEET_SPOT", "Sweet Spot (0.8 - 1.3)"
+    elif 1.3 < acwr <= 1.5:
+        return acwr, "HIGH_RISK", "Elevated Risk (1.3 - 1.5)"
+    else:
+        return acwr, "EXTREME_RISK", "High Injury Danger (> 1.5)"
+
+
 class AthleteWorkloadAnalyticsView(APIView):
-    """
-    Returns 28-day continuous workload distribution and Gabbett ACWR metrics
-    for a specific athlete.
-    """
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, athlete_id):
         athlete = get_object_or_404(Athlete, id=athlete_id)
@@ -131,10 +123,9 @@ class AthleteWorkloadAnalyticsView(APIView):
         else:
             end_date = date.today()
 
-        start_date_28d = end_date - timedelta(days=27)  # 28 days inclusive
-        start_date_7d = end_date - timedelta(days=6)    # 7 days inclusive
+        start_date_28d = end_date - timedelta(days=27)
+        start_date_7d = end_date - timedelta(days=6)
 
-        # Fetch model instances directly so the @property `session_workload` is accessible
         logs = (
             AttendanceLog.objects.filter(
                 athlete=athlete,
@@ -143,10 +134,11 @@ class AthleteWorkloadAnalyticsView(APIView):
             .order_by('date')
         )
 
-        # Index logs by ISO date string
+        earliest_log = AttendanceLog.objects.filter(athlete=athlete).order_by('date').first()
+        history_span_days = (end_date - earliest_log.date).days + 1 if earliest_log else 0
+
         log_map = {log.date.isoformat(): log for log in logs}
 
-        # Build 28-day continuous timeline (filling rest days with 0 AU)
         daily_breakdown = []
         total_28d_workload = 0
         total_7d_workload = 0
@@ -172,28 +164,12 @@ class AthleteWorkloadAnalyticsView(APIView):
                 "is_acute_window": current_day >= start_date_7d,
             })
 
-        # Calculate Gabbett ACWR Metrics
         acute_workload = round(total_7d_workload / 7, 2)
         chronic_workload = round(total_28d_workload / 28, 2)
 
-        if chronic_workload > 0:
-            acwr = round(acute_workload / chronic_workload, 2)
-        else:
-            acwr = 0.0
-
-        # Determine Gabbett Risk Zone
-        if acwr < 0.8:
-            risk_status = "UNDERTRAINED"
-            risk_label = "Under-trained (< 0.8)"
-        elif 0.8 <= acwr <= 1.3:
-            risk_status = "SWEET_SPOT"
-            risk_label = "Sweet Spot (0.8 - 1.3)"
-        elif 1.3 < acwr <= 1.5:
-            risk_status = "HIGH_RISK"
-            risk_label = "Elevated Risk (1.3 - 1.5)"
-        else:
-            risk_status = "EXTREME_RISK"
-            risk_label = "High Injury Danger (> 1.5)"
+        acwr, risk_status, risk_label = compute_acwr_status(
+            acute_workload, chronic_workload, history_span_days
+        )
 
         payload = {
             "athlete_id": str(athlete.id),
@@ -211,11 +187,8 @@ class AthleteWorkloadAnalyticsView(APIView):
 
         return Response(payload, status=status.HTTP_200_OK)
 
+
 class AthleteWorkloadExportCSVView(APIView):
-    """
-    Exports a 28-day workload timeline and ACWR summary as a downloadable CSV report.
-    Permission: Authenticated Coach (JWT).
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, athlete_id):
@@ -238,9 +211,11 @@ class AthleteWorkloadExportCSVView(APIView):
             date__range=[start_date_28d, end_date]
         ).order_by('date')
 
+        earliest_log = AttendanceLog.objects.filter(athlete=athlete).order_by('date').first()
+        history_span_days = (end_date - earliest_log.date).days + 1 if earliest_log else 0
+
         log_map = {log.date.isoformat(): log for log in logs}
 
-        # Calculate metrics
         total_28d_workload = 0
         total_7d_workload = 0
         daily_rows = []
@@ -269,25 +244,13 @@ class AthleteWorkloadExportCSVView(APIView):
 
         acute_load = round(total_7d_workload / 7, 2)
         chronic_load = round(total_28d_workload / 28, 2)
-        acwr = round(acute_load / chronic_load, 2) if chronic_load > 0 else 0.0
+        acwr, _, risk_label = compute_acwr_status(acute_load, chronic_load, history_span_days)
 
-        if acwr < 0.8:
-            risk_label = "Under-trained (< 0.8)"
-        elif 0.8 <= acwr <= 1.3:
-            risk_label = "Sweet Spot (0.8 - 1.3)"
-        elif 1.3 < acwr <= 1.5:
-            risk_label = "Elevated Risk (1.3 - 1.5)"
-        else:
-            risk_label = "High Injury Danger (> 1.5)"
-
-        # Generate CSV response
         filename = f"workload_{athlete.last_name.lower()}_{end_date.isoformat()}.csv"
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
         writer = csv.writer(response)
-
-        # Metadata Header
         writer.writerow(["ATHLE-TECH ATHLETE WORKLOAD & ACWR REPORT"])
         writer.writerow(["Athlete", f"{athlete.first_name} {athlete.last_name}"])
         writer.writerow(["Primary Event", athlete.primary_event])
@@ -296,18 +259,11 @@ class AthleteWorkloadExportCSVView(APIView):
         writer.writerow(["Chronic Workload (28-Day Avg)", chronic_load])
         writer.writerow(["ACWR Ratio", acwr])
         writer.writerow(["Gabbett Risk Category", risk_label])
-        writer.writerow([])  # Blank spacer row
+        writer.writerow([])
 
-        # Telemetry Data Table
         writer.writerow([
-            "Date",
-            "Day of Week",
-            "Attendance Status",
-            "Session Type",
-            "Duration (min)",
-            "sRPE (1-10)",
-            "Session Workload (AU)",
-            "Acute 7-Day Window"
+            "Date", "Day of Week", "Attendance Status", "Session Type",
+            "Duration (min)", "sRPE (1-10)", "Session Workload (AU)", "Acute 7-Day Window"
         ])
 
         for row in daily_rows:
@@ -315,9 +271,10 @@ class AthleteWorkloadExportCSVView(APIView):
 
         return response
 
+
 class ASAGapAnalysisReportView(APIView):
     """
-    Returns full squad or athlete-specific gap analysis against ASA National Standards.
+    Evaluates each athlete's Personal Best per competed event against EPA/ASA standards.
     """
     permission_classes = [IsAuthenticated]
 
@@ -328,47 +285,46 @@ class ASAGapAnalysisReportView(APIView):
         report_data = []
 
         for athlete in athletes:
-            # Query best performance for primary event
-            performances = athlete.race_performances.filter(event=athlete.primary_event)
+            performances = athlete.race_performances.all()
             if not performances.exists():
                 continue
 
-            is_track = athlete.primary_event in ASAGapEngine.TRACK_EVENTS
-            best_perf = performances.order_by('result_numeric').first() if is_track else performances.order_by('-result_numeric').first()
+            # Group by distinct event_name competed in
+            competed_events = set(performances.values_list('event_name', flat=True))
 
-            if not best_perf:
-                continue
+            for ev_name in competed_events:
+                ev_perfs = performances.filter(event_name=ev_name)
+                best_perf = ev_perfs.order_by('recorded_time_seconds').first()
+                if not best_perf:
+                    continue
 
-            analysis = ASAGapEngine.evaluate(
-                event=athlete.primary_event,
-                gender=athlete.gender,
-                category=category,
-                athlete_best=best_perf.result_numeric
-            )
+                analysis = ASAGapEngine.evaluate(
+                    event=ev_name,
+                    gender=athlete.gender,
+                    category=category,
+                    athlete_best=float(best_perf.recorded_time_seconds)
+                )
 
-            if analysis:
-                report_data.append({
-                    "athlete_id": str(athlete.id),
-                    "athlete_name": f"{athlete.first_name} {athlete.last_name}",
-                    "gender": athlete.gender,
-                    "event": athlete.primary_event,
-                    "category": category,
-                    "standard": analysis.standard_value,
-                    "athlete_best": analysis.athlete_best,
-                    "gap": analysis.gap_value,
-                    "percentage_gap": analysis.percentage_gap,
-                    "is_qualified": analysis.is_qualified,
-                    "status": analysis.status_label,
-                    "unit": analysis.unit
-                })
+                if analysis:
+                    report_data.append({
+                        "athlete_id": f"{athlete.id}_{ev_name}",
+                        "athlete_name": f"{athlete.first_name} {athlete.last_name}",
+                        "gender": athlete.gender,
+                        "event": ev_name,
+                        "category": category,
+                        "standard": analysis.standard_value,
+                        "athlete_best": analysis.athlete_best,
+                        "gap": analysis.gap_value,
+                        "percentage_gap": analysis.percentage_gap,
+                        "is_qualified": analysis.is_qualified,
+                        "status": analysis.status_label,
+                        "unit": analysis.unit
+                    })
 
         return Response(report_data)
 
 
 class ASAGapExportCSVView(APIView):
-    """
-    Streams a CSV file containing ASA qualifying gap diagnostics for coach distribution.
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -376,67 +332,50 @@ class ASAGapExportCSVView(APIView):
         athletes = Athlete.objects.all().prefetch_related('race_performances')
 
         response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = f'attachment; filename="asa_qualification_gap_{category.lower()}.csv"'
+        response['Content-Disposition'] = f'attachment; filename="epa_asa_qualification_gap_{category.lower()}.csv"'
 
         writer = csv.writer(response)
-
-        # Header Metadata
-        writer.writerow(["ATHLE-TECH - ASA QUALIFICATION GAP REPORT"])
+        writer.writerow(["ATHLE-TECH - EPA / ASA QUALIFICATION GAP REPORT"])
         writer.writerow(["Target Division / Category", category])
-        writer.writerow(["Governing Standards", "Athletics South Africa National Standards"])
+        writer.writerow(["Governing Standards", "Eastern Province Athletics (EPA) / ASA Standards"])
         writer.writerow([])
 
-        # Table Columns
         writer.writerow([
-            "Athlete Name",
-            "Gender",
-            "Event",
-            "Personal Best",
-            "ASA Standard",
-            "Delta Margin",
-            "Gap %",
-            "Status",
-            "Qualified"
+            "Athlete Name", "Gender", "Event", "Personal Best",
+            "Target Standard", "Delta Margin", "Gap %", "Status", "Qualified"
         ])
 
         for athlete in athletes:
-            performances = athlete.race_performances.filter(event=athlete.primary_event)
-            if not performances.exists():
-                continue
+            performances = athlete.race_performances.all()
+            competed_events = set(performances.values_list('event_name', flat=True))
 
-            is_track = athlete.primary_event in ASAGapEngine.TRACK_EVENTS
-            best_perf = performances.order_by('result_numeric').first() if is_track else performances.order_by('-result_numeric').first()
+            for ev_name in competed_events:
+                best_perf = performances.filter(event_name=ev_name).order_by('recorded_time_seconds').first()
+                if not best_perf:
+                    continue
 
-            if not best_perf:
-                continue
+                analysis = ASAGapEngine.evaluate(
+                    event=ev_name,
+                    gender=athlete.gender,
+                    category=category,
+                    athlete_best=float(best_perf.recorded_time_seconds)
+                )
 
-            analysis = ASAGapEngine.evaluate(
-                event=athlete.primary_event,
-                gender=athlete.gender,
-                category=category,
-                athlete_best=best_perf.result_numeric
-            )
-
-            if analysis:
-                if analysis.unit == 's':
+                if analysis:
                     pb_str = ASAGapEngine.format_time(analysis.athlete_best)
                     std_str = ASAGapEngine.format_time(analysis.standard_value)
                     gap_str = f"{'+' if analysis.gap_value > 0 else ''}{analysis.gap_value:.2f}s"
-                else:
-                    pb_str = f"{analysis.athlete_best:.2f}m"
-                    std_str = f"{analysis.standard_value:.2f}m"
-                    gap_str = f"{'-' if analysis.gap_value > 0 else '+'}{abs(analysis.gap_value):.2f}m"
 
-                writer.writerow([
-                    f"{athlete.first_name} {athlete.last_name}",
-                    athlete.gender,
-                    athlete.primary_event,
-                    pb_str,
-                    std_str,
-                    gap_str,
-                    f"{analysis.percentage_gap:+0.2f}%",
-                    analysis.status_label,
-                    "YES" if analysis.is_qualified else "NO"
-                ])
+                    writer.writerow([
+                        f"{athlete.first_name} {athlete.last_name}",
+                        athlete.gender,
+                        ev_name,
+                        pb_str,
+                        std_str,
+                        gap_str,
+                        f"{analysis.percentage_gap:+0.2f}%",
+                        analysis.status_label,
+                        "YES" if analysis.is_qualified else "NO"
+                    ])
 
         return response
