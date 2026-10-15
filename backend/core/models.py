@@ -51,9 +51,6 @@ class Athlete(models.Model):
 
 
 class AttendanceLog(models.Model):
-    """
-    Stores individual daily training sessions, durations, and RPE for ACWR calculation.
-    """
     class AttendanceStatus(models.TextChoices):
         PRESENT = 'PRESENT', 'Present'
         ABSENT = 'ABSENT', 'Absent'
@@ -79,16 +76,14 @@ class AttendanceLog(models.Model):
 
     class Meta:
         ordering = ['-date']
-        unique_together = ['athlete', 'date']  # Prevents duplicate entries per athlete per day
+        # Removed unique_together constraint to allow multiple daily sessions (Option C)
 
     @property
     def session_workload(self) -> int:
-        """Calculates Session sRPE Workload (Duration x RPE)."""
         return self.duration_minutes * self.rpe if self.status == self.AttendanceStatus.PRESENT else 0
 
     def __str__(self):
         return f"{self.date} - {self.athlete.first_name}: {self.session_type} (RPE {self.rpe})"
-
 
 class RacePerformance(models.Model):
     """

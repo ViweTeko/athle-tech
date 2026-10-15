@@ -165,30 +165,59 @@ class AttendanceLogTests(BaseAuthenticatedTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["session_workload"], 0)
 
-    def test_duplicate_attendance_same_day_updates_existing(self):
-        """Verify posting on the same day updates the existing log (upsert)"""
-        AttendanceLog.objects.create(
+    def test_multiple_sessions_same_day_permitted(self):
+        """Verify multiple sessions on the same date are stored (e.g. track + gym)"""
+        url = reverse("attendance-list")
+        
+        # 1. Morning Track Session
+        payload_1 = {
+            "athlete": str(self.athlete.id),
+            "date": "2026-08-27",
+            "status": "PRESENT",
+            "session_type": "TRACK",
+            "duration_minutes": 60,
+            "rpe": 7,
+        }
+        res_1 = self.client.post(url, payload_1, format="json")
+        self.assertEqual(res_1.status_code, status.HTTP_201_CREATED)
+
+        # 2. Afternoon Gym Session on the same day
+        payload_2 = {
+            "athlete": str(self.athlete.id),
+            "date": "2026-08-27",
+            "status": "PRESENT",
+            "session_type": "STRENGTH",
+            "duration_minutes": 45,
+            "rpe": 6,
+        }
+        res_2 = self.client.post(url, payload_2, format="json")
+        self.assertEqual(res_2.status_code, status.HTTP_201_CREATED)
+
+        # Verify both records exist
+        self.assertEqual(
+            AttendanceLog.objects.filter(athlete=self.athlete, date=date(2026, 8, 27)).count(),
+            2
+        )
+
+    def test_update_existing_attendance_log(self):
+        """Verify an existing session can be edited via PATCH"""
+        log = AttendanceLog.objects.create(
             athlete=self.athlete,
             date=date(2026, 8, 27),
             status="PRESENT",
             session_type="TRACK",
             duration_minutes=60,
-            rpe=6,
+            rpe=5,
         )
+        url = reverse("attendance-detail", kwargs={"pk": log.id})
+        update_payload = {"rpe": 8, "duration_minutes": 75}
 
-        url = reverse("attendance-list")
-        duplicate_payload = {
-            "athlete": str(self.athlete.id),
-            "date": "2026-08-27",
-            "status": "PRESENT",
-            "session_type": "TEMPO",
-            "duration_minutes": 45,
-            "rpe": 7,
-        }
-        response = self.client.post(url, duplicate_payload, format="json")
+        response = self.client.patch(url, update_payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(AttendanceLog.objects.filter(athlete=self.athlete, date=date(2026, 8, 27)).count(), 1)
-        self.assertEqual(response.data["session_workload"], 315)
+        log.refresh_from_db()
+        self.assertEqual(log.rpe, 8)
+        self.assertEqual(log.duration_minutes, 75)
+        self.assertEqual(log.session_workload, 600)
 
     def test_rpe_validator_bounds(self):
         """Verify RPE must be within 1-10 range"""

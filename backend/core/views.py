@@ -45,25 +45,6 @@ class AthleteViewSet(viewsets.ModelViewSet):
         return queryset
 
 
-class AttendanceLogViewSet(viewsets.ModelViewSet):
-    queryset = AttendanceLog.objects.all()
-    serializer_class = AttendanceLogSerializer
-    filter_backends = [filters.OrderingFilter]
-    ordering_fields = ['date']
-
-    def get_queryset(self):
-        queryset = AttendanceLog.objects.select_related('athlete').all()
-        athlete_id = self.request.query_params.get('athlete')
-        date_param = self.request.query_params.get('date')
-
-        if athlete_id:
-            queryset = queryset.filter(athlete_id=athlete_id)
-        if date_param:
-            queryset = queryset.filter(date=date_param)
-
-        return queryset
-
-
 class RacePerformanceViewSet(viewsets.ModelViewSet):
     queryset = RacePerformance.objects.all()
     serializer_class = RacePerformanceSerializer
@@ -105,6 +86,29 @@ def compute_acwr_status(acute_workload: float, chronic_workload: float, history_
         return acwr, "EXTREME_RISK", "High Injury Danger (> 1.5)"
 
 
+class AttendanceLogViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for logging, updating, and deleting training sessions.
+    Supports multiple sessions per athlete per day.
+    """
+    queryset = AttendanceLog.objects.all()
+    serializer_class = AttendanceLogSerializer
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['date']
+
+    def get_queryset(self):
+        queryset = AttendanceLog.objects.select_related('athlete').all()
+        athlete_id = self.request.query_params.get('athlete')
+        date_param = self.request.query_params.get('date')
+
+        if athlete_id:
+            queryset = queryset.filter(athlete_id=athlete_id)
+        if date_param:
+            queryset = queryset.filter(date=date_param)
+
+        return queryset
+
+
 class AthleteWorkloadAnalyticsView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -137,7 +141,11 @@ class AthleteWorkloadAnalyticsView(APIView):
         earliest_log = AttendanceLog.objects.filter(athlete=athlete).order_by('date').first()
         history_span_days = (end_date - earliest_log.date).days + 1 if earliest_log else 0
 
-        log_map = {log.date.isoformat(): log for log in logs}
+        # Group multiple sessions by date
+        from collections import defaultdict
+        daily_logs_map = defaultdict(list)
+        for log in logs:
+            daily_logs_map[log.date.isoformat()].append(log)
 
         daily_breakdown = []
         total_28d_workload = 0
@@ -146,21 +154,25 @@ class AthleteWorkloadAnalyticsView(APIView):
         for i in range(28):
             current_day = start_date_28d + timedelta(days=i)
             day_iso = current_day.isoformat()
-            log = log_map.get(day_iso)
+            day_sessions = daily_logs_map.get(day_iso, [])
 
-            workload = log.session_workload if log else 0
-            total_28d_workload += workload
+            # Sum workloads if there are multiple sessions on this day
+            day_workload = sum(s.session_workload for s in day_sessions)
+            total_duration = sum(s.duration_minutes for s in day_sessions)
+            avg_rpe = round(sum(s.rpe for s in day_sessions) / len(day_sessions), 1) if day_sessions else None
 
+            total_28d_workload += day_workload
             if current_day >= start_date_7d:
-                total_7d_workload += workload
+                total_7d_workload += day_workload
 
             daily_breakdown.append({
                 "date": day_iso,
                 "date_label": current_day.strftime("%b %d"),
-                "workload": workload,
-                "rpe": log.rpe if log else None,
-                "duration_minutes": log.duration_minutes if log else 0,
-                "status": log.status if log else 'REST',
+                "workload": day_workload,
+                "rpe": avg_rpe,
+                "duration_minutes": total_duration,
+                "session_count": len(day_sessions),
+                "status": day_sessions[0].status if day_sessions else 'REST',
                 "is_acute_window": current_day >= start_date_7d,
             })
 
@@ -195,13 +207,7 @@ class AthleteWorkloadExportCSVView(APIView):
         athlete = get_object_or_404(Athlete, id=athlete_id)
 
         ref_date_str = request.query_params.get('date')
-        if ref_date_str:
-            try:
-                end_date = date.fromisoformat(ref_date_str)
-            except ValueError:
-                end_date = date.today()
-        else:
-            end_date = date.today()
+        end_date = date.fromisoformat(ref_date_str) if ref_date_str else date.today()
 
         start_date_28d = end_date - timedelta(days=27)
         start_date_7d = end_date - timedelta(days=6)
@@ -214,33 +220,8 @@ class AthleteWorkloadExportCSVView(APIView):
         earliest_log = AttendanceLog.objects.filter(athlete=athlete).order_by('date').first()
         history_span_days = (end_date - earliest_log.date).days + 1 if earliest_log else 0
 
-        log_map = {log.date.isoformat(): log for log in logs}
-
-        total_28d_workload = 0
-        total_7d_workload = 0
-        daily_rows = []
-
-        for i in range(28):
-            current_day = start_date_28d + timedelta(days=i)
-            day_iso = current_day.isoformat()
-            log = log_map.get(day_iso)
-
-            workload = log.session_workload if log else 0
-            total_28d_workload += workload
-
-            if current_day >= start_date_7d:
-                total_7d_workload += workload
-
-            daily_rows.append([
-                day_iso,
-                current_day.strftime("%A"),
-                log.status if log else 'REST',
-                log.session_type if log else 'REST',
-                log.duration_minutes if log else 0,
-                log.rpe if log else 0,
-                workload,
-                "YES" if current_day >= start_date_7d else "NO"
-            ])
+        total_28d_workload = sum(log.session_workload for log in logs)
+        total_7d_workload = sum(log.session_workload for log in logs if log.date >= start_date_7d)
 
         acute_load = round(total_7d_workload / 7, 2)
         chronic_load = round(total_28d_workload / 28, 2)
@@ -266,8 +247,17 @@ class AthleteWorkloadExportCSVView(APIView):
             "Duration (min)", "sRPE (1-10)", "Session Workload (AU)", "Acute 7-Day Window"
         ])
 
-        for row in daily_rows:
-            writer.writerow(row)
+        for log in logs:
+            writer.writerow([
+                log.date.isoformat(),
+                log.date.strftime("%A"),
+                log.status,
+                log.session_type,
+                log.duration_minutes,
+                log.rpe,
+                log.session_workload,
+                "YES" if log.date >= start_date_7d else "NO"
+            ])
 
         return response
 
