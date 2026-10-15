@@ -8,3 +8,4 @@ repomix-output.txt
 __pycache__/
 db.sqlite3
 .envfrontend/dist/
+frontend/dist/
